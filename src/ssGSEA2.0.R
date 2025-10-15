@@ -360,7 +360,7 @@ ssGSEA2 <- function (
         ## - apply correlation scheme and weighting
         ## - calculate ES
         ## ############################################################################
-            gsea.score <- function (ordered.gene.list, gene.set2, weight, n.rows, correl.type, gene.set.direction, data.expr) {
+            gsea.score <- function (ordered.gene.list, gene.set2, weight, n.rows, correl.type, gene.set.direction, data.expr, is_permutation = FALSE) {
 
                 ##################################################################
                 ## function to calculate ES score
@@ -402,19 +402,28 @@ ssGSEA2 <- function (
                     ## 'correl.vector' into the same order
                     ## as the ordered gene list
                     if (correl.type == "rank") {
-                        ##correl.vector <- data.array[ordered.gene.list, sample.index]
-                        correl.vector <- data.expr[ordered.gene.list]
+                        if (is_permutation) {
+                            correl.vector <- ordered.gene.list  # Use permuted ranks directly
+                        } else {
+                            correl.vector <- data.expr[ordered.gene.list]  # Use original data
+                        }
 
                     } else if (correl.type == "symm.rank") {
-                        ##correl.vector <- data.array[ordered.gene.list, sample.index]
-                        correl.vector <- data.expr[ordered.gene.list]
+                        if (is_permutation) {
+                            correl.vector <- ordered.gene.list  # Use permuted ranks directly
+                        } else {
+                            correl.vector <- data.expr[ordered.gene.list]  # Use original data
+                        }
 
                         correl.vector <- ifelse(correl.vector > correl.vector[ceiling(n.rows/2)],
                                                 correl.vector,
                                                 correl.vector + correl.vector - correl.vector[ceiling(n.rows/2)])
                     } else if (correl.type == "z.score") {
-                        ##x <- data.array[ordered.gene.list, sample.index]
-                        x <- data.expr[ordered.gene.list]
+                        if (is_permutation) {
+                            x <- ordered.gene.list  # Use permuted ranks directly
+                        } else {
+                            x <- data.expr[ordered.gene.list]  # Use original data
+                        }
                         correl.vector <- (x - mean(x))/sd(x)
                     }
                 }
@@ -738,7 +747,7 @@ ssGSEA2 <- function (
                     ## do permutations
                 } else {
 
-                    ES.tmp = sapply(1:nperm,  function(x) gsea.score(sample(1:n.rows), gene.set2, weight, n.rows, correl.type, gene.set.direction, data.expr)$ES)
+                    ES.tmp = sapply(1:nperm,  function(x) gsea.score(sample(1:n.rows), gene.set2, weight, n.rows, correl.type, gene.set.direction, data.expr, is_permutation=TRUE)$ES)
                     phi[sample.index, ] <- unlist(ES.tmp)
 
                     ## #######################################################
