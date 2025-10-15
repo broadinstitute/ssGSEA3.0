@@ -402,28 +402,16 @@ ssGSEA2 <- function (
                     ## 'correl.vector' into the same order
                     ## as the ordered gene list
                     if (correl.type == "rank") {
-                        if (is_permutation) {
-                            correl.vector <- ordered.gene.list  # Use permuted ranks directly
-                        } else {
-                            correl.vector <- data.expr[ordered.gene.list]  # Use original data
-                        }
+                        correl.vector <- data.expr  # Always use original data in original order
 
                     } else if (correl.type == "symm.rank") {
-                        if (is_permutation) {
-                            correl.vector <- ordered.gene.list  # Use permuted ranks directly
-                        } else {
-                            correl.vector <- data.expr[ordered.gene.list]  # Use original data
-                        }
+                        correl.vector <- data.expr  # Always use original data in original order
 
                         correl.vector <- ifelse(correl.vector > correl.vector[ceiling(n.rows/2)],
                                                 correl.vector,
                                                 correl.vector + correl.vector - correl.vector[ceiling(n.rows/2)])
                     } else if (correl.type == "z.score") {
-                        if (is_permutation) {
-                            x <- ordered.gene.list  # Use permuted ranks directly
-                        } else {
-                            x <- data.expr[ordered.gene.list]  # Use original data
-                        }
+                        x <- data.expr  # Always use original data in original order
                         correl.vector <- (x - mean(x))/sd(x)
                     }
                 }
