@@ -85,8 +85,8 @@ while(!db.ok){
 ## ######################################################################
 ##                          START
 ## ######################################################################
-#source(paste(script.dir, 'src/ssGSEA2.0.R', sep='/'))
-source(file.path(script.dir, 'src/ssGSEA2.0.R'))
+#source(paste(script.dir, 'src/ssGSEA3.0.R', sep='/'))
+source(file.path(script.dir, 'src/ssGSEA3.0.R'))
 
 ## #############################################
 ## prepare output folder

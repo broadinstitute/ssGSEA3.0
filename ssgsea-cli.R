@@ -38,7 +38,7 @@ option_list <- list(
 script.dir = parse_args( OptionParser(option_list=option_list) )$script.dir # create script.dir variable for backwards compatibility
 
 ## source the actual script
-source(file.path(script.dir, 'src', 'ssGSEA2.0.R'))
+source(file.path(script.dir, 'src', 'ssGSEA3.0.R'))
 source(file.path(script.dir, 'src', 'parse_yaml_ssgsea.R'))
 
 # parse command line parameters

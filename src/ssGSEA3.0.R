@@ -7,6 +7,9 @@
 ##   4) handle missing values
 ##   5) cmapR functions for data import/export
 ##   6) produce more extensive output, e.g. dataset/database overlaps, etc.
+## 20260415 edited by D R Mani
+##   change permutation testing to bootstrap p-value estimation
+##   see comments in code for details
 if(!suppressPackageStartupMessages(require("pacman"))){
   install.packages("pacman")
 }
@@ -55,7 +58,7 @@ ssGSEA2 <- function (
                                                     ## actual values matter, and can change the resulting score
                      statistic           = c("area.under.RES", "Kolmogorov-Smirnov"), ## test statistic
                      output.score.type   = c("NES", "ES"),
-                     nperm               = 1000,    ## number of random permutations for NES case
+                     nperm               = 1000,    ## number of bootstrap replicates for NES case (gene-level resampling)
                      combine.mode        = c("combine.off", "combine.replace", "combine.add"),
                      ## "combine.off" do not combine *_UP and *_DN versions in a single score.
                      ## "combine.replace" combine *_UP and *_DN versions in a single score.
@@ -113,7 +116,7 @@ ssGSEA2 <- function (
         paste('weight:', weight, sep='\t'),
         paste('statistic:', statistic, sep='\t'),
         paste('output.score.type', output.score.type, sep='\t'),
-        paste('nperm:', nperm, sep='\t'),
+        paste('nperm (gene-level bootstrap replicates):', nperm, sep='\t'),
         paste('global.fdr:', global.fdr, sep='\t'),
         paste('min.overlap:', min.overlap, sep='\t'),
         paste('correl.type:', correl.type, sep='\t'),
@@ -345,7 +348,7 @@ ssGSEA2 <- function (
                              weight = 0,
                              statistic = "Kolmogorov-Smirnov",   ## alternatives: "Kolmogorov-Smirnov", "area.under.RES"
                              gene.set,
-                             nperm = 200,
+                             nperm = 200,                         ## bootstrap replicates (gene-level)
                              correl.type  = "rank",              ## "rank", "z.score", "symm.rank"
                              gene.set.direction=NULL,             ## direction of regulation; has to be in same order than 'gene.set'
                              min.overlap,
@@ -401,20 +404,29 @@ ssGSEA2 <- function (
                     ## if weighting is used (weight > 0), bring
                     ## 'correl.vector' into the same order
                     ## as the ordered gene list
+                    ## NOTE: The orginal code noted below permutes genes (shuffles gene labels) and breaks
+                    ##       the gene-gene correlation structure (ie makes genes independent). When weight !=0,
+                    ##       this results in a null distribution that is far too narrow, making even random 
+                    ##       biological signals look "statistically significant" (p ~ 0). This effect is even more 
+                    ##       acute when there are a few genes with high expression--any random geneset that 
+                    ##       includes these genes by chance will get a huge boost in its ES.
+                    ##       To counter this, the bootstrap approach calculates a distribution over observed
+                    ##       ES value and uses that to calculate a p-value (see below).
+
                     if (correl.type == "rank") {
-                        ##correl.vector <- data.array[ordered.gene.list, sample.index]
-                        correl.vector <- data.expr[ordered.gene.list]
+                        # orginal code: correl.vector <- data.expr[ordered.gene.list]
+                        correl.vector <- data.expr  # Always use original data in original order
 
                     } else if (correl.type == "symm.rank") {
-                        ##correl.vector <- data.array[ordered.gene.list, sample.index]
-                        correl.vector <- data.expr[ordered.gene.list]
+                        # orginal code: correl.vector <- data.expr[ordered.gene.list]
+                        correl.vector <- data.expr  # Always use original data in original order
 
                         correl.vector <- ifelse(correl.vector > correl.vector[ceiling(n.rows/2)],
                                                 correl.vector,
                                                 correl.vector + correl.vector - correl.vector[ceiling(n.rows/2)])
                     } else if (correl.type == "z.score") {
-                        ##x <- data.array[ordered.gene.list, sample.index]
-                        x <- data.expr[ordered.gene.list]
+                        # orginal code: correl.vector <- data.expr[ordered.gene.list]
+                        x <- data.expr  # Always use original data in original order
                         correl.vector <- (x - mean(x))/sd(x)
                     }
                 }
@@ -728,38 +740,104 @@ ssGSEA2 <- function (
                 random.walk[[sample.index]] <- GSEA.results
 
                 ## ##############################################
-                ## no permutations: - ES and NES are the same
-                ##                  - all p-values are 1
+                ## no bootstrap: ES and NES are the same; p-values are 1
                 if (nperm == 0) {
                     NES.vector[sample.index] <- ES.vector[sample.index]
                     p.val.vector[sample.index] <- 1
 
                     ## ##############################################
-                    ## do permutations
+                    ## gene-level bootstrap: resample rows with replacement,
+                    ## recompute rank-ordered ES each replicate -> empirical null of the score
                 } else {
 
-                    ES.tmp = sapply(1:nperm,  function(x) gsea.score(sample(1:n.rows), gene.set2, weight, n.rows, correl.type, gene.set.direction, data.expr)$ES)
+                    ES.tmp <- sapply(seq_len(nperm), function(...) {
+                        for (attempt in seq_len(200)) {
+                            boot.ix <- sample.int(n.rows, n.rows, replace = TRUE)
+                            gene.names.b <- gene.names[boot.ix]
+                            if (sum(gene.names.b %in% gene.set) < min.overlap)
+                                next
+                            expr.boot <- data.expr[boot.ix]
+                            gene.set2.boot <- as.numeric(unlist(
+                                sapply(gene.set, function(x) which(gene.names.b == x))
+                            ))
+                            gene.list.boot <- order(expr.boot, decreasing = TRUE)
+                            return(
+                                gsea.score(
+                                    gene.list.boot,
+                                    gene.set2.boot,
+                                    weight,
+                                    n.rows,
+                                    correl.type,
+                                    gene.set.direction,
+                                    expr.boot
+                                )$ES
+                            )
+                        }
+                        NA_real_
+                    })
                     phi[sample.index, ] <- unlist(ES.tmp)
 
-                    ## #######################################################
-                    ## calculate NES and p-values
-                    if (ES.vector[sample.index] >= 0) {
-                        pos.phi <- phi[sample.index, phi[sample.index, ] >= 0]
-                        if (length(pos.phi) == 0) pos.phi <- 0.5
-                        pos.m <- mean(pos.phi)
-                        NES.vector[sample.index] <- ES.vector[sample.index]/pos.m
-                        s <- sum(pos.phi >= ES.vector[sample.index])/length(pos.phi)
-                        p.val.vector[sample.index] <- ifelse(s == 0, 1/nperm, s)
+                    ## BOOTSTRAP P-VALUE CALCULATION via shifted null
+                    # The formula for calculating p-values (two-sided) using Bootstrap sampling is:
+                    #     p = (1 / B) * Σ I( |theta*_i - theta_hat| >= |theta_hat - theta_0| )
+                    # Where:
+                    #     B         : Number of bootstrap resamples
+                    #     theta*_i  : Statistic calculated from the i-th bootstrap sample (=ES*_i)
+                    #     theta_hat : Observed statistic from the original sample (=ES_observed)
+                    #     theta_0   : Null hypothesis value (ES_0=0 in this case))
+                    #     I(.)      : Indicator function (1 if condition is true, 0 otherwise)
+                    # This formulation results in biased p-value estimates (under-dispersed, resulting
+                    # too many p-values ~ 0) due to (i) assuming mean(ES*_i)=ES_observed and (ii) SD
+                    # of the null is identical to the SD of the bootstrap distribution.
+                    # To avoid this bias, the gold standard is to use the "studentized" (bootstrap-t) fix.
+                    # For the ES, this is not possible since the std error of ES*_i cannot be estimated
+                    # (without performing another bootstrap with the bootstrap--leading to O(N^2) complexity).
+                    # Hence, we adopt a z-score based approximation as follows:
+                    #   ES_null = ES*_i - mean (ES*_i)    [Efron & Tibshirani, 1993. Chapter 16]
+                    #   se_boot = std_dev(ES*_i) 
+                    #   ES_observed_z = (ES_observed - ES_0) / se_boot   [assuming ES_0=0]
+                    #   p_value = 2 * (1 - CDF_Normal(|ES_observed_z|))   [or use directional approach as in code below]
+                    # This is akin to a z-test with the SD derived via bootstrap sampling [MacKinnon, 2002; Efron, 1982]
 
+                    obs.ES <- ES.vector[sample.index] ## theta_hat
+                    phi[sample.index, ] <- phi[sample.index, ] - mean (phi[sample.index, ])  # mimics traditional permutation ES (null ~ 0)
+                    B <- length(phi[sample.index, ])
+                    se_boot <- sd(phi[sample.index, ])
+                    z_score <- obs.ES / se_boot
+
+                    if (B == 0) {
+                        NES.vector[sample.index] <- obs.ES
+                        p.val.vector[sample.index] <- 1
                     } else {
-                        neg.phi <-  phi[sample.index, phi[sample.index, ] < 0]
-                        if (length(neg.phi) == 0) neg.phi <- 0.5
-                        neg.m <- mean(neg.phi)
-                        NES.vector[sample.index] <- ES.vector[sample.index]/abs(neg.m)
-                        s <- sum(neg.phi <= ES.vector[sample.index])/length(neg.phi)
-                        p.val.vector[sample.index] <- ifelse(s == 0, 1/nperm, s)
+                        ## NES: same normalization idea as permutation ssGSEA (mean of same-sign bootstrap ES)
+                        if (obs.ES >= 0) {
+                            pos.phi <- phi[sample.index, ][phi[sample.index, ] >= 0]
+                            if (length(pos.phi) == 0) {
+                                pos.m <- 0.5
+                            } else {
+                                pos.m <- mean(pos.phi)
+                            }
+                            NES.vector[sample.index] <- obs.ES / pos.m
+                            ## choose tail by observed ES sign
+                            # pos.boot <- phi[sample.index, ] >= obs.ES
+                            # p.val.vector[sample.index] <- (sum(pos.boot) + 1) / (B + 1)
+                            p.val.vector[sample.index] <- 2 * pnorm(z_score, lower.tail = FALSE)
+                        } else {
+                            neg.phi <- phi[sample.index, ][phi[sample.index, ] < 0]
+                            if (length(neg.phi) == 0) {
+                                neg.m <- 0.5
+                            } else {
+                                neg.m <- mean(neg.phi)
+                            }
+                            NES.vector[sample.index] <- obs.ES / abs(neg.m)
+                            ## choose tail by observed ES sign
+                            # neg.boot <- phi[sample.index, ] <= obs.ES
+                            # p.val.vector[sample.index] <- (sum(neg.boot) + 1) / (B + 1)
+                            p.val.vector[sample.index] <- 2 * pnorm(z_score, lower.tail = TRUE)
+                        }
+                        # p.val.vector[sample.index] <- max(1 / (B + 1), min(1, p.val.vector[sample.index]))
                     }
-                } ## end do permutations
+                } ## end bootstrap
             } ## end minimal overlap required
         }
         return(list(ES.vector = ES.vector, NES.vector =  NES.vector, p.val.vector = p.val.vector, OL.vector=OL.vector, OL.numb.vector=OL.numb.vector, OL.perc.vector=OL.perc.vector, gene.set.size=gene.set.size, random.walk = random.walk))
