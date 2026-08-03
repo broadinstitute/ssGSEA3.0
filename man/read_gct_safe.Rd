@@ -2,7 +2,7 @@
 % Please edit documentation in R/gct-io.R
 \name{read_gct_safe}
 \alias{read_gct_safe}
-\title{Safely parse a GCT file, working around non-unique row IDs}
+\title{Safely parse a GCT file, working around cmapR quirks}
 \usage{
 read_gct_safe(gct.str)
 }
@@ -14,10 +14,10 @@ A \link[cmapR:GCT-class]{cmapR::GCT} object.
 }
 \description{
 \code{cmapR::parse_gctx()} refuses to parse a GCT file whose \code{rid} column is
-not unique. This wrapper falls back to reading the file as plain text,
-de-duplicating \code{rid} with \code{\link[=make.unique]{make.unique()}}, writing a corrected copy next
-to the original, and re-parsing that. This exact fallback used to be
-duplicated between the preprocessing and enrichment code paths; it now
-lives here once.
+not unique, and (separately, see \code{\link[=.parse_single_row_gct]{.parse_single_row_gct()}}) mis-parses one
+with exactly one data row and more than one row-descriptor column. This
+wrapper falls back to reading the file as plain text and handling either
+case by hand. The non-unique-\code{rid} fallback used to be duplicated between
+the preprocessing and enrichment code paths; it now lives here once.
 }
 \keyword{internal}

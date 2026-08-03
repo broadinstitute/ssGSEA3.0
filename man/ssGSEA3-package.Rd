@@ -2,7 +2,6 @@
 % Please edit documentation in R/ssGSEA3-package.R
 \docType{package}
 \name{ssGSEA3-package}
-\alias{ssGSEA3}
 \alias{ssGSEA3-package}
 \title{ssGSEA3: Single-Sample and Site-Centric Gene Set Enrichment Analysis}
 \description{

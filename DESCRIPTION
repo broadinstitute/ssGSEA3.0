@@ -29,7 +29,10 @@ Imports:
     gtools,
     verification,
     methods,
-    stats
+    stats,
+    parallel,
+    graphics,
+    grDevices
 Suggests:
     testthat (>= 3.0.0),
     optparse,

@@ -1,0 +1,52 @@
+#' Bootstrap-based p-value and normalized enrichment score
+#'
+#' Converts an observed enrichment score plus a vector of gene-level bootstrap
+#' replicate enrichment scores into a normalized enrichment score (NES) and a
+#' two-sided p-value, using a z-score approximation (see Details).
+#'
+#' The original ssGSEA/GSEA permutation approach shuffles gene labels to build
+#' a null distribution, which breaks gene-gene correlation and produces an
+#' artificially narrow null whenever `weight != 0` -- inflating significance
+#' (even random gene sets that happen to include a few highly-expressed genes
+#' get an inflated ES). This bootstrap approach instead resamples genes (rows)
+#' with replacement, recenters the resulting bootstrap ES distribution around
+#' zero (mimicking a permutation-style null), and computes a z-score of the
+#' observed ES against the bootstrap standard deviation (Efron & Tibshirani
+#' 1993, ch. 16). A full bootstrap-t correction is not tractable here since
+#' estimating each bootstrap replicate's own standard error would require a
+#' second level of resampling (O(n^2)); this z-score approximation is used
+#' instead (see also MacKinnon 2002; Efron 1982).
+#'
+#' `boot.es` may contain `NA`s (a replicate that never reached `min.overlap`
+#' after its resampling attempts, see [project_geneset()]) -- in keeping with
+#' the original implementation, these are *not* removed before computing the
+#' mean/SD, so a single failed replicate propagates to `NA` NES/p-value for
+#' that sample. In practice this only happens for gene sets whose overlap is
+#' very close to `min.overlap`.
+#'
+#' @param obs.es Observed enrichment score.
+#' @param boot.es Numeric vector of bootstrap replicate enrichment scores.
+#' @return A list with `NES` and `p.value`.
+#' @keywords internal
+bootstrap_es_pvalue <- function(obs.es, boot.es) {
+  B <- length(boot.es)
+  if (B == 0) return(list(NES = obs.es, p.value = 1))
+
+  boot.es <- boot.es - mean(boot.es)
+  se_boot <- stats::sd(boot.es)
+  z_score <- obs.es / se_boot
+
+  if (obs.es >= 0) {
+    pos.phi <- boot.es[boot.es >= 0]
+    pos.m <- if (length(pos.phi) == 0) 0.5 else mean(pos.phi)
+    NES <- obs.es / pos.m
+    p.value <- 2 * stats::pnorm(z_score, lower.tail = FALSE)
+  } else {
+    neg.phi <- boot.es[boot.es < 0]
+    neg.m <- if (length(neg.phi) == 0) 0.5 else mean(neg.phi)
+    NES <- obs.es / abs(neg.m)
+    p.value <- 2 * stats::pnorm(z_score, lower.tail = TRUE)
+  }
+
+  list(NES = NES, p.value = p.value)
+}

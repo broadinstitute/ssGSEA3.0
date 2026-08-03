@@ -1,7 +1,7 @@
 #' Preprocess a GCT file for ssGSEA or PTM-SEA
 #'
 #' Converts a raw GCT file into one of three report levels used downstream by
-#' `ssGSEA2()` (not yet ported):
+#' `ssGSEA3()` (not yet ported):
 #' \itemize{
 #'   \item `"gcr"` (gene-centric-redundant): relabels rows with gene symbols,
 #'     keeping every row (deduplicating names only).

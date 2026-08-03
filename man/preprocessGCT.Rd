@@ -88,7 +88,7 @@ signed, log-transformed p-values).}
 }
 \description{
 Converts a raw GCT file into one of three report levels used downstream by
-\code{ssGSEA2()} (not yet ported):
+\code{ssGSEA3()} (not yet ported):
 \itemize{
 \item \code{"gcr"} (gene-centric-redundant): relabels rows with gene symbols,
 keeping every row (deduplicating names only).
