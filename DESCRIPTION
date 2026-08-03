@@ -27,11 +27,14 @@ Imports:
     doParallel,
     foreach,
     gtools,
-    verification
+    verification,
+    methods,
+    stats
 Suggests:
     testthat (>= 3.0.0),
     optparse,
     yaml,
+    AnnotationDbi,
     org.Hs.eg.db,
     org.Mm.eg.db,
     org.Rn.eg.db,
