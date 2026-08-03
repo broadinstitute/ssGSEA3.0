@@ -1,0 +1,15 @@
+^ssGSEA3\.0\.Rproj$
+^\.Rproj\.user$
+^\.git$
+^data-raw$
+^README\.md$
+^Readme\.html$
+^config\.yaml$
+^config$
+^db$
+^example$
+^src$
+^preprocess_gct-cli\.R$
+^ssgsea-cli\.R$
+^ssgsea-gui\.R$
+^\.claude$

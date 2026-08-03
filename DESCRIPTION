@@ -1,0 +1,40 @@
+Package: ssGSEA3
+Title: Single-Sample and Site-Centric Gene Set Enrichment Analysis (ssGSEA/PTM-SEA)
+Version: 0.1.0
+Authors@R: c(
+    person("Natalie", "Clark", , "nclark@broadinstitute.org", role = c("aut", "cre")),
+    person("Karsten", "Krug", role = "aut"),
+    person("D R", "Mani", role = "aut")
+  )
+Description: Tools for gene-centric (ssGSEA) and site-centric (PTM-SEA)
+    single-sample gene set enrichment analysis: GCT preprocessing into
+    gene-centric or single-site-centric reports, a gene-level bootstrap
+    enrichment/significance engine, and summary heatmap reporting with
+    HALLMARK and PTMSigDB term groupings.
+License: file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1)
+Imports:
+    cmapR,
+    ComplexHeatmap,
+    circlize,
+    magrittr,
+    glue,
+    dplyr,
+    doParallel,
+    foreach,
+    gtools,
+    verification
+Suggests:
+    testthat (>= 3.0.0),
+    optparse,
+    yaml,
+    org.Hs.eg.db,
+    org.Mm.eg.db,
+    org.Rn.eg.db,
+    org.Dr.eg.db
+Config/testthat/edition: 3
+LazyData: true
