@@ -211,6 +211,41 @@ gsea_score <- function(ordered.gene.list, gene.set2, weight, n.rows, correl.type
        indicator = ind, correl.vector = correl.vector, step.up = up, step.down = 1 / Nm)
 }
 
+#' Map gene set members to row positions, keeping direction labels aligned
+#'
+#' `which(gene.names == x)` for each member of `gene.set` can return zero
+#' matches (member absent from `gene.names`) or more than one (redundant/
+#' multi-probe `gene.names`) -- naively `unlist()`-ing across members then
+#' shrinks or grows the result out of step with `gene.set.direction` (one
+#' label per *original* member). This keeps the two aligned by expanding
+#' each member's direction label to match however many positions it actually
+#' occupies (zero, one, or many).
+#'
+#' Without this, [gsea_score()]'s directional branch can index past the end
+#' of a too-short position vector (returning `NA`s that later blow up a
+#' `min()`/`max()` call) or silently pair positions with the wrong member's
+#' direction. This is what made a resampled subset of `gene.names` (as in
+#' [.resample_bootstrap_es()]) unsafe with the original, un-aligned
+#' construction -- gene-level bootstrap resampling can drop individual gene
+#' set members from a given replicate, which ordinary permutation (which
+#' never drops a gene, only reshuffles all of them) cannot.
+#'
+#' @param gene.set Character vector of gene set member names.
+#' @param gene.set.direction `NULL`, or a character vector of `"u"`/`"d"`
+#'   labels parallel to `gene.set`.
+#' @param gene.names Row (gene/site) names to match `gene.set` against.
+#' @return A list with `gene.set2` (matched row positions) and
+#'   `gene.set.direction` (`NULL`, or labels aligned with `gene.set2`).
+#' @keywords internal
+.align_geneset_to_direction <- function(gene.set, gene.set.direction, gene.names) {
+  positions <- lapply(gene.set, function(x) which(gene.names == x))
+  gene.set2 <- as.numeric(unlist(positions))
+  if (is.null(gene.set.direction)) {
+    return(list(gene.set2 = gene.set2, gene.set.direction = NULL))
+  }
+  list(gene.set2 = gene.set2, gene.set.direction = rep(gene.set.direction, lengths(positions)))
+}
+
 #' Gene-level bootstrap resampling for one sample/gene-set pair
 #'
 #' Resamples genes (rows) with replacement `nperm` times, recomputing the
@@ -236,12 +271,10 @@ gsea_score <- function(ordered.gene.list, gene.set2, weight, n.rows, correl.type
       gene.names.b <- gene.names[boot.ix]
       if (sum(gene.names.b %in% gene.set) < min.overlap) next
       expr.boot <- data.expr[boot.ix]
-      gene.set2.boot <- as.numeric(unlist(
-        sapply(gene.set, function(x) which(gene.names.b == x))
-      ))
+      aligned <- .align_geneset_to_direction(gene.set, gene.set.direction, gene.names.b)
       gene.list.boot <- order(expr.boot, decreasing = TRUE)
-      return(gsea_score(gene.list.boot, gene.set2.boot, weight, n.rows, correl.type,
-                         gene.set.direction, expr.boot, statistic, min.overlap)$ES)
+      return(gsea_score(gene.list.boot, aligned$gene.set2, weight, n.rows, correl.type,
+                         aligned$gene.set.direction, expr.boot, statistic, min.overlap)$ES)
     }
     NA_real_
   }, numeric(1))
@@ -318,11 +351,12 @@ project_geneset <- function(data.array, gene.names, n.cols, n.rows, weight = 0,
       }
       OL.perc.vector[sample.index] <- round(100 * (OL.numb.vector[sample.index] / size.G.current), 1)
     } else {
-      gene.set2 <- as.numeric(unlist(sapply(gene.set, function(x) which(gene.names == x))))
+      aligned <- .align_geneset_to_direction(gene.set, gene.set.direction, gene.names)
+      gene.set2 <- aligned$gene.set2
       gene.list <- order(data.expr, decreasing = TRUE)
 
       GSEA.results <- gsea_score(gene.list, gene.set2, weight, n.rows, correl.type,
-                                  gene.set.direction, data.expr, statistic, min.overlap)
+                                  aligned$gene.set.direction, data.expr, statistic, min.overlap)
       ES.vector[sample.index] <- GSEA.results$ES
 
       if (is.null(gene.set.direction)) {

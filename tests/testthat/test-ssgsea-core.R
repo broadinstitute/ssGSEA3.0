@@ -1,4 +1,80 @@
 ## ##########################################################################
+##            .align_geneset_to_direction() (the desync fix)
+## ##########################################################################
+
+test_that(".align_geneset_to_direction: drops absent members without desyncing direction labels", {
+  gene.names <- paste0("G", 1:10)
+  gene.set <- c("G1", "NOTPRESENT1", "G2", "NOTPRESENT2", "G9", "G10")
+  gs.dir <- c("u", "u", "u", "u", "d", "d")
+
+  aligned <- .align_geneset_to_direction(gene.set, gs.dir, gene.names)
+
+  expect_equal(aligned$gene.set2, c(1, 2, 9, 10))
+  expect_equal(aligned$gene.set.direction, c("u", "u", "d", "d"))
+  expect_equal(length(aligned$gene.set2), length(aligned$gene.set.direction))
+})
+
+test_that(".align_geneset_to_direction: expands direction labels for redundant (multi-probe) gene names", {
+  gene.names <- c("G1", "G1", "G2") ## G1 measured twice (e.g. multi-probe data)
+  gene.set <- c("G1", "G2")
+  gs.dir <- c("u", "d")
+
+  aligned <- .align_geneset_to_direction(gene.set, gs.dir, gene.names)
+
+  expect_equal(aligned$gene.set2, c(1, 2, 3))
+  expect_equal(aligned$gene.set.direction, c("u", "u", "d")) ## G1's "u" label repeated for both its rows
+})
+
+test_that(".align_geneset_to_direction: non-directional (NULL) case is an unchanged passthrough", {
+  gene.names <- paste0("G", 1:5)
+  gene.set <- c("G1", "NOTPRESENT", "G3")
+  aligned <- .align_geneset_to_direction(gene.set, NULL, gene.names)
+  expect_equal(aligned$gene.set2, c(1, 3))
+  expect_null(aligned$gene.set.direction)
+})
+
+test_that("project_geneset: a directional gene set with a partially-absent member no longer crashes", {
+  gene.names <- paste0("G", 1:20)
+  data.expr <- 20:1
+  mat <- matrix(data.expr, ncol = 1, dimnames = list(gene.names, "S1"))
+
+  ## 3 "u" members but only 2 exist in the data; 2 "d" members, both exist
+  gene.set <- c("G1", "NOTPRESENT", "G2", "G19", "G20")
+  gs.dir <- c("u", "u", "u", "d", "d")
+
+  res <- project_geneset(data.array = mat, gene.names = gene.names, n.cols = 1, n.rows = 20,
+                          weight = 0, statistic = "area.under.RES", gene.set = gene.set,
+                          nperm = 0, correl.type = "rank", gene.set.direction = gs.dir,
+                          min.overlap = 3, size.G.current = 5)
+
+  expect_false(is.na(res$ES.vector[1]))
+  expect_equal(res$ES.vector[1], 20) ## verified independently: ES.u=10, ES.d=-10, ES=ES.u-ES.d=20
+})
+
+test_that("project_geneset: bootstrap resampling of a directional gene set is crash-free and reproducible", {
+  set.seed(1)
+  gene.names <- paste0("G", 1:30)
+  mat <- matrix(rnorm(30 * 2), ncol = 2, dimnames = list(gene.names, c("S1", "S2")))
+  gene.set <- gene.names[1:10]
+  gs.dir <- rep(c("u", "d"), 5)
+
+  set.seed(42)
+  res1 <- project_geneset(data.array = mat, gene.names = gene.names, n.cols = 2, n.rows = 30,
+                           weight = 0, statistic = "area.under.RES", gene.set = gene.set,
+                           nperm = 300, correl.type = "rank", gene.set.direction = gs.dir,
+                           min.overlap = 5, size.G.current = 10)
+  set.seed(42)
+  res2 <- project_geneset(data.array = mat, gene.names = gene.names, n.cols = 2, n.rows = 30,
+                           weight = 0, statistic = "area.under.RES", gene.set = gene.set,
+                           nperm = 300, correl.type = "rank", gene.set.direction = gs.dir,
+                           min.overlap = 5, size.G.current = 10)
+
+  expect_false(anyNA(res1$NES.vector))
+  expect_identical(res1$NES.vector, res2$NES.vector)
+  expect_identical(res1$p.val.vector, res2$p.val.vector)
+})
+
+## ##########################################################################
 ##                          gsea_score()
 ## ##########################################################################
 

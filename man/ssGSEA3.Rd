@@ -100,18 +100,24 @@ statistic (Subramanian et al. 2005; Abazeed et al. 2013) and, for
 normalized enrichment score and p-value (see \code{\link[=bootstrap_es_pvalue]{bootstrap_es_pvalue()}} for
 why this replaced the original permutation-based approach).
 }
-\section{Known limitation (directional/PTMsigDB gene sets)}{
- for a gene set
-with \code{gene.set.direction} (PTM-SEA/PTMsigDB \verb{;u}/\verb{;d} sets), a bootstrap
-replicate that happens to resample only \emph{some} of a gene set's members
-can desync the position/direction bookkeeping inside \code{\link[=gsea_score]{gsea_score()}},
-sometimes erroring out and sometimes silently contributing a wrong
-enrichment score to that replicate's bootstrap null. This traces back to
-\code{gene.set2 <- as.numeric(unlist(sapply(gene.set, function(x) which(gene.names == x))))}, present essentially unchanged since
-directionality support was added to the original ssGSEA2.0 in 2016 --
-it is not new to this port, is independent of \code{weight}, and is confirmed
-reproducible against the bundled PTM-SEA example. Root cause and
-practical impact are still under investigation; treat NES/p-values for
-directional gene sets with some caution until this is resolved.
+\section{Fixed limitation (directional/PTMsigDB gene sets)}{
+ earlier
+versions of this port could desync a directional (PTM-SEA/PTMsigDB
+\verb{;u}/\verb{;d}) gene set's position/direction bookkeeping inside
+\code{\link[=gsea_score]{gsea_score()}} whenever a bootstrap replicate happened to resample only
+\emph{some} of a gene set's members -- sometimes erroring out, sometimes
+silently contributing a wrong enrichment score to that replicate's
+bootstrap null. This is now fixed via \code{\link[=.align_geneset_to_direction]{.align_geneset_to_direction()}},
+which keeps the two in lockstep regardless of which members a given
+replicate happens to include. The vulnerable construction traces back to
+code essentially unchanged since directionality support was added to the
+original ssGSEA2.0 in 2016, but it could never actually manifest there:
+ssGSEA2.0's gene-label \emph{permutation} reorders every gene without ever
+dropping one, so its (fixed, computed-once) position/direction vectors
+never desync. It's specifically ssGSEA3.0's gene-level bootstrap
+resampling \emph{with replacement} -- which can and does drop individual
+genes from a given replicate -- that exposes it; this is a real
+consequence of the bootstrap rework, not a latent defect ssGSEA2.0 use
+was ever exposed to.
 }
 
