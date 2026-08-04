@@ -359,6 +359,39 @@ ssGSEA2 <- function (
 
         ## #############################################################################
         ##
+        ## Maps gene set members to row positions, keeping direction labels
+        ## aligned. 'which(gene.names == x)' for each member of 'gene.set' can
+        ## return zero matches (member absent from 'gene.names') or more than
+        ## one (redundant/multi-probe 'gene.names'); naively unlist()-ing
+        ## across members then shrinks or grows the result out of step with
+        ## 'gene.set.direction' (one label per *original* member). This keeps
+        ## the two aligned by expanding each member's direction label to
+        ## match however many positions it actually occupies.
+        ##
+        ## Fixes a bug where gsea.score()'s directional branch could index
+        ## past the end of a too-short position vector (NA -> blows up a
+        ## min()/max() call) or silently pair a position with the wrong
+        ## member's direction. This traces back to code unchanged since
+        ## PTMsigDB directionality was added in 2016, but could never
+        ## manifest under gene-label permutation (which reorders every gene
+        ## without ever dropping one) -- it's specifically bootstrap
+        ## resampling *with replacement* (which can drop individual genes
+        ## from a given replicate) that exposes it.
+        ## #############################################################################
+            align.geneset.to.direction <- function(gene.set, gene.set.direction, gene.names) {
+                ## NOTE: must be lapply(), not sapply() -- sapply() silently
+                ## simplifies to a flat vector/matrix whenever every member
+                ## has the same match count (very common, e.g. all exactly 1
+                ## match), which corrupts the per-member length() below
+                positions <- lapply(gene.set, function(x) which(gene.names == x))
+                gene.set2 <- as.numeric(unlist(positions))
+                if (is.null(gene.set.direction))
+                    return(list(gene.set2 = gene.set2, gene.set.direction = NULL))
+                list(gene.set2 = gene.set2, gene.set.direction = rep(gene.set.direction, sapply(positions, length)))
+            }
+
+        ## #############################################################################
+        ##
         ##           function to calculate GSEA enrichment score
         ## - apply correlation scheme and weighting
         ## - calculate ES
@@ -694,10 +727,12 @@ ssGSEA2 <- function (
                 ## gene.set2 <- match(gene.set, gene.names)
                 ## gene.set2 <- which( gene.names %in% gene.set ) ## to work with redundant gene names, e.g. phospho-data
                 ## this takes care about redundant gene lists, the approach above does not return the locations of 'gene.set' in 'gene.names' but the indices of 'gene.names' present in 'gene.set'
-                gene.set2 <- as.numeric( unlist(sapply( gene.set, function(x) which(gene.names == x) )))
-  
-               # save(gene.set2, gene.set, gene.names, file='tmp.RData')  
-                
+                ## kept aligned with gene.set.direction via align.geneset.to.direction() -- see its definition for why
+                aligned <- align.geneset.to.direction(gene.set, gene.set.direction, gene.names)
+                gene.set2 <- aligned$gene.set2
+
+               # save(gene.set2, gene.set, gene.names, file='tmp.RData')
+
                 ## order of ranks, list is now ordered, elements are locations of the ranks in
                 ## original data,
                 gene.list <- order(data.expr, decreasing=T)
@@ -705,7 +740,7 @@ ssGSEA2 <- function (
 
                 ## ##############################################
                 ## calculate enrichment score
-                GSEA.results <- gsea.score (gene.list, gene.set2, weight, n.rows, correl.type, gene.set.direction, data.expr)
+                GSEA.results <- gsea.score (gene.list, gene.set2, weight, n.rows, correl.type, aligned$gene.set.direction, data.expr)
                 ES.vector[sample.index] <- GSEA.results$ES
 
                 ## overlap between gene set and data
@@ -757,18 +792,17 @@ ssGSEA2 <- function (
                             if (sum(gene.names.b %in% gene.set) < min.overlap)
                                 next
                             expr.boot <- data.expr[boot.ix]
-                            gene.set2.boot <- as.numeric(unlist(
-                                sapply(gene.set, function(x) which(gene.names.b == x))
-                            ))
+                            ## kept aligned with gene.set.direction via align.geneset.to.direction()
+                            aligned.boot <- align.geneset.to.direction(gene.set, gene.set.direction, gene.names.b)
                             gene.list.boot <- order(expr.boot, decreasing = TRUE)
                             return(
                                 gsea.score(
                                     gene.list.boot,
-                                    gene.set2.boot,
+                                    aligned.boot$gene.set2,
                                     weight,
                                     n.rows,
                                     correl.type,
-                                    gene.set.direction,
+                                    aligned.boot$gene.set.direction,
                                     expr.boot
                                 )$ES
                             )
