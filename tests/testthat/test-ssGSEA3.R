@@ -74,3 +74,21 @@ test_that("ssGSEA3: output.score.type='ES' skips bootstrapping (p-values are all
   expect_true(all(res$pvalues == 1))
   expect_equal(res$scores, res$scores) ## ES == NES when nperm forced to 0; sanity only
 })
+
+test_that("ssGSEA3: verbose=TRUE with log.file=NULL doesn't crash (log writing must not depend on verbose)", {
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
+  genes <- paste0("G", 1:20)
+  mat <- matrix(c(20:1, rnorm(20, 10, 3)), ncol = 2, dimnames = list(genes, c("S1", "S2")))
+  gct.path <- make_test_gct(mat, "input.gct")
+  gmt.path <- make_test_gmt(list(GS_A = genes[1:6]), "sets.gmt")
+
+  expect_no_error(
+    ssGSEA3(gct.path, output.prefix = "run_verbose_nolog", gene.set.databases = gmt.path,
+            min.overlap = 3, nperm = 20, verbose = TRUE, param.file = FALSE, log.file = NULL,
+            export.signat.gct = FALSE)
+  )
+})

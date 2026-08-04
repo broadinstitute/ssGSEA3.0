@@ -10,7 +10,7 @@
   N.gs <- length(matched$gs)
 
   run_one <- function(gs.i) {
-    if (verbose) cat(matched$gs.names[gs.i], "\n", file = log.file, append = TRUE)
+    if (!is.null(log.file)) cat(matched$gs.names[gs.i], "\n", file = log.file, append = TRUE)
     gene.set.direction <- if (!is.null(matched$gs.direction)) matched$gs.direction[[gs.i]] else NULL
     project_geneset(
       data.array = m, gene.names = gene.names, n.cols = Ns, n.rows = Ng,

@@ -17,3 +17,5 @@
 #' @format A named character vector of hex color codes, one per category
 #'   value in [hallmark_categories].
 "hallmark_category_colors"
+
+utils::globalVariables(c("hallmark_categories", "hallmark_category_colors"))

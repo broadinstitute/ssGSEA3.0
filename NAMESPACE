@@ -3,6 +3,7 @@
 S3method(print,ssgsea_result)
 export(RefSeq2UniProt)
 export(plot_rank_diagnostics)
+export(plot_ssgsea_heatmap)
 export(preprocessGCT)
 export(read_gene_sets)
 export(select_top_terms)

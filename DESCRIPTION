@@ -35,6 +35,7 @@ Imports:
     grDevices
 Suggests:
     testthat (>= 3.0.0),
+    withr,
     optparse,
     yaml,
     AnnotationDbi,
