@@ -92,3 +92,39 @@ test_that("ssGSEA3: verbose=TRUE with log.file=NULL doesn't crash (log writing m
             export.signat.gct = FALSE)
   )
 })
+
+test_that("ssGSEA3: a directional gene set unscoreable in every sample (lone-member split) is dropped, not exported empty", {
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
+  genes <- paste0("G", 1:20)
+  mat <- matrix(c(20:1, rnorm(20, 10, 3)), ncol = 2, dimnames = list(genes, c("S1", "S2")))
+  gct.path <- make_test_gct(mat, "input.gct")
+
+  ## GS_BAD: 1 "u" + 4 "d" members (5 total, clears min.overlap=5 on raw count)
+  ## but the lone "u" member can't be scored since the "d" side (4) is itself
+  ## below min.overlap -- used to report a fake ES=0/p=1 and, worse, crash
+  ## export.signat.gct with an empty-overlap signature (see
+  ## project_ssgsea3_empty_signature_export_bug memory)
+  gmt.path <- make_test_gmt(
+    list(
+      GS_BAD = c("G1;u", "G10;d", "G11;d", "G12;d", "G13;d"),
+      GS_OK = paste0(genes[1:6], ";u")
+    ),
+    "sets.gmt"
+  )
+
+  res <- NULL
+  expect_no_error(
+    res <- ssGSEA3(gct.path, output.prefix = "run_bad_signature", gene.set.databases = gmt.path,
+                   min.overlap = 5, nperm = 20, verbose = FALSE, param.file = FALSE,
+                   log.file = NULL, export.signat.gct = TRUE)
+  )
+
+  expect_false("GS_BAD" %in% res$gs.names)
+  expect_true("GS_OK" %in% res$gs.names)
+  expect_true(any(grepl("^GS_OK", list.files("signature_gct"))))
+  expect_false(any(grepl("^GS_BAD", list.files("signature_gct"))))
+})

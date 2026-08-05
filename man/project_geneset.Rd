@@ -62,4 +62,13 @@ values, checks minimum overlap, computes the observed enrichment score,
 and (when \code{nperm > 0}) runs the gene-level bootstrap to obtain an NES and
 p-value via \code{\link[=bootstrap_es_pvalue]{bootstrap_es_pvalue()}}.
 }
+\details{
+A directional gene set can pass the raw min.overlap check yet still have
+no usable up/down split for a given sample (see \code{\link[=gsea_score]{gsea_score()}}'s
+lone-member-imbalance rule, which zeroes both sides' scores) -- this is
+treated the same as too-little-overlap (\code{NA}, not a fake zero score), so
+a gene set that can never be scored in any sample is correctly dropped
+upstream by \code{\link[=build_ssgsea_result]{build_ssgsea_result()}} rather than reaching export with an
+empty signature.
+}
 \keyword{internal}

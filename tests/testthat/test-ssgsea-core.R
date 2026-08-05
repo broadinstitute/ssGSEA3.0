@@ -191,6 +191,49 @@ test_that("project_geneset: insufficient overlap reports NA scores and overlap d
   expect_true(grepl("G1", res$OL.vector[1]))
 })
 
+test_that("project_geneset: directional gene set with an unusable up/down split (lone member on one side, other side < min.overlap) is NA, not a fake zero score", {
+  gene.names <- paste0("G", 1:20)
+  mat <- matrix(20:1, ncol = 1, dimnames = list(gene.names, "S1"))
+
+  ## 1 "u" member + 4 "d" members = 5 total (clears min.overlap on raw count),
+  ## but gsea_score()'s lone-member rule zeroes both sides since the "d" side
+  ## (4) is itself below min.overlap (5) -- this used to report ES=0/p=1 as
+  ## if a real (null) score had been computed, instead of NA/unscored
+  gene.set <- c("G1", "G10", "G11", "G12", "G13")
+  gs.dir <- c("u", "d", "d", "d", "d")
+
+  res <- project_geneset(data.array = mat, gene.names = gene.names, n.cols = 1, n.rows = 20,
+                          weight = 0, statistic = "area.under.RES", gene.set = gene.set,
+                          nperm = 0, correl.type = "rank", gene.set.direction = gs.dir,
+                          min.overlap = 5, size.G.current = 5)
+
+  expect_true(is.na(res$ES.vector[1]))
+  expect_true(is.na(res$NES.vector[1]))
+  expect_true(is.na(res$p.val.vector[1]))
+  expect_true(is.na(res$random.walk[[1]]))
+  expect_equal(res$OL.numb.vector[1], 5) ## raw overlap still reported for diagnostics
+  expect_true(grepl("G1;u", res$OL.vector[1]))
+})
+
+test_that("project_geneset: a directional gene set with a *usable* up/down split still scores normally (no regression)", {
+  gene.names <- paste0("G", 1:20)
+  mat <- matrix(20:1, ncol = 1, dimnames = list(gene.names, "S1"))
+
+  ## same total size (5) and same 1-member "u" side as the unusable case above,
+  ## but here the "d" side (4) is reduced to fit within a smaller min.overlap,
+  ## so it clears the lone-member rule and should score as usual
+  gene.set <- c("G1", "G10", "G11", "G12", "G13")
+  gs.dir <- c("u", "d", "d", "d", "d")
+
+  res <- project_geneset(data.array = mat, gene.names = gene.names, n.cols = 1, n.rows = 20,
+                          weight = 0, statistic = "area.under.RES", gene.set = gene.set,
+                          nperm = 0, correl.type = "rank", gene.set.direction = gs.dir,
+                          min.overlap = 4, size.G.current = 5)
+
+  expect_false(is.na(res$ES.vector[1]))
+  expect_true(is.list(res$random.walk[[1]])) ## a real GSEA.results list, not the NA sentinel
+})
+
 test_that("project_geneset (bootstrap): reproducible under a fixed seed, NES same sign as ES, p in [0,1]", {
   set.seed(42)
   mat <- matrix(c(rnorm(15, mean = 3), rnorm(15, mean = -1)), ncol = 2,

@@ -280,12 +280,47 @@ gsea_score <- function(ordered.gene.list, gene.set2, weight, n.rows, correl.type
   }, numeric(1))
 }
 
+#' Record overlap diagnostics for a sample that can't be scored
+#'
+#' Shared by [project_geneset()]'s two "can't score this sample" cases:
+#' too few overlapping members outright, and (directional gene sets only)
+#' enough raw overlap but an unusable up/down split (see
+#' [project_geneset()]'s `no.usable.split` check). Reports whatever raw
+#' overlap exists even though no score will be computed, for diagnostics.
+#'
+#' @inheritParams gsea_score
+#' @param size.G.current Original (pre-overlap) gene set size, for percentage.
+#' @return A list with `OL`, `OL.numb`, `OL.perc`.
+#' @keywords internal
+.overlap_diagnostics_only <- function(gene.names, gene.set, gene.set.direction, size.G.current) {
+  OL.numb <- sum(gene.names %in% gene.set)
+  OL <- NA
+  if (OL.numb > 0) {
+    if (is.null(gene.set.direction)) {
+      OL <- paste(intersect(gene.names, gene.set), collapse = "|")
+    } else {
+      OL <- paste(paste(gene.set, gene.set.direction, sep = ";")[
+        stats::na.omit(match(gene.names, gene.set))
+      ], collapse = "|")
+    }
+  }
+  list(OL = OL, OL.numb = OL.numb, OL.perc = round(100 * (OL.numb / size.G.current), 1))
+}
+
 #' Score one gene set against every sample in a dataset
 #'
 #' The per-gene-set unit of work: for each sample column, handles missing
 #' values, checks minimum overlap, computes the observed enrichment score,
 #' and (when `nperm > 0`) runs the gene-level bootstrap to obtain an NES and
 #' p-value via [bootstrap_es_pvalue()].
+#'
+#' A directional gene set can pass the raw min.overlap check yet still have
+#' no usable up/down split for a given sample (see [gsea_score()]'s
+#' lone-member-imbalance rule, which zeroes both sides' scores) -- this is
+#' treated the same as too-little-overlap (`NA`, not a fake zero score), so
+#' a gene set that can never be scored in any sample is correctly dropped
+#' upstream by [build_ssgsea_result()] rather than reaching export with an
+#' empty signature.
 #'
 #' @inheritParams gsea_score
 #' @param data.array Numeric matrix (genes/sites x samples).
@@ -338,18 +373,10 @@ project_geneset <- function(data.array, gene.names, n.cols, n.rows, weight = 0,
 
     if (sum(gene.names %in% gene.set) < min.overlap) {
       random.walk[[sample.index]] <- NA
-      OL.numb.vector[sample.index] <- sum(gene.names %in% gene.set)
-
-      if (OL.numb.vector[sample.index] > 0) {
-        if (is.null(gene.set.direction)) {
-          OL.vector[sample.index] <- paste(intersect(gene.names, gene.set), collapse = "|")
-        } else {
-          OL.vector[sample.index] <- paste(paste(gene.set, gene.set.direction, sep = ";")[
-            stats::na.omit(match(gene.names, gene.set))
-          ], collapse = "|")
-        }
-      }
-      OL.perc.vector[sample.index] <- round(100 * (OL.numb.vector[sample.index] / size.G.current), 1)
+      ins <- .overlap_diagnostics_only(gene.names, gene.set, gene.set.direction, size.G.current)
+      OL.vector[sample.index] <- ins$OL
+      OL.numb.vector[sample.index] <- ins$OL.numb
+      OL.perc.vector[sample.index] <- ins$OL.perc
     } else {
       aligned <- .align_geneset_to_direction(gene.set, gene.set.direction, gene.names)
       gene.set2 <- aligned$gene.set2
@@ -357,36 +384,48 @@ project_geneset <- function(data.array, gene.names, n.cols, n.rows, weight = 0,
 
       GSEA.results <- gsea_score(gene.list, gene.set2, weight, n.rows, correl.type,
                                   aligned$gene.set.direction, data.expr, statistic, min.overlap)
-      ES.vector[sample.index] <- GSEA.results$ES
 
-      if (is.null(gene.set.direction)) {
-        OL.vector[sample.index] <- paste(unique(gene.names[gene.list][GSEA.results$indicator]), collapse = "|")
-        OL.numb.vector[sample.index] <- length(unique(gene.names[gene.list][GSEA.results$indicator]))
-        OL.perc.vector[sample.index] <- round(100 * (OL.numb.vector[sample.index] / size.G.current), 1)
+      no.usable.split <- !is.null(gene.set.direction) &&
+        length(GSEA.results$indicator$u) == 0 && length(GSEA.results$indicator$d) == 0
+
+      if (no.usable.split) {
+        random.walk[[sample.index]] <- NA
+        ins <- .overlap_diagnostics_only(gene.names, gene.set, gene.set.direction, size.G.current)
+        OL.vector[sample.index] <- ins$OL
+        OL.numb.vector[sample.index] <- ins$OL.numb
+        OL.perc.vector[sample.index] <- ins$OL.perc
       } else {
-        ol.tmp <- c()
-        if (length(GSEA.results$indicator$u) > 0)
-          ol.tmp <- c(ol.tmp, paste(unique(gene.names[gene.list][GSEA.results$indicator$u]), "u", sep = ";"))
-        if (length(GSEA.results$indicator$d) > 0)
-          ol.tmp <- c(ol.tmp, paste(unique(gene.names[gene.list][GSEA.results$indicator$d]), "d", sep = ";"))
+        ES.vector[sample.index] <- GSEA.results$ES
 
-        OL.vector[sample.index] <- paste(ol.tmp, collapse = "|")
-        OL.numb.vector[sample.index] <- length(ol.tmp)
-        OL.perc.vector[sample.index] <- round(100 * (OL.numb.vector[sample.index] / size.G.current), 1)
-      }
+        if (is.null(gene.set.direction)) {
+          OL.vector[sample.index] <- paste(unique(gene.names[gene.list][GSEA.results$indicator]), collapse = "|")
+          OL.numb.vector[sample.index] <- length(unique(gene.names[gene.list][GSEA.results$indicator]))
+          OL.perc.vector[sample.index] <- round(100 * (OL.numb.vector[sample.index] / size.G.current), 1)
+        } else {
+          ol.tmp <- c()
+          if (length(GSEA.results$indicator$u) > 0)
+            ol.tmp <- c(ol.tmp, paste(unique(gene.names[gene.list][GSEA.results$indicator$u]), "u", sep = ";"))
+          if (length(GSEA.results$indicator$d) > 0)
+            ol.tmp <- c(ol.tmp, paste(unique(gene.names[gene.list][GSEA.results$indicator$d]), "d", sep = ";"))
 
-      random.walk[[sample.index]] <- GSEA.results
+          OL.vector[sample.index] <- paste(ol.tmp, collapse = "|")
+          OL.numb.vector[sample.index] <- length(ol.tmp)
+          OL.perc.vector[sample.index] <- round(100 * (OL.numb.vector[sample.index] / size.G.current), 1)
+        }
 
-      if (nperm == 0) {
-        NES.vector[sample.index] <- ES.vector[sample.index]
-        p.val.vector[sample.index] <- 1
-      } else {
-        boot.es <- .resample_bootstrap_es(gene.names, gene.set, data.expr, weight, n.rows,
-                                           correl.type, gene.set.direction, min.overlap,
-                                           nperm, statistic)
-        boot.res <- bootstrap_es_pvalue(ES.vector[sample.index], boot.es)
-        NES.vector[sample.index] <- boot.res$NES
-        p.val.vector[sample.index] <- boot.res$p.value
+        random.walk[[sample.index]] <- GSEA.results
+
+        if (nperm == 0) {
+          NES.vector[sample.index] <- ES.vector[sample.index]
+          p.val.vector[sample.index] <- 1
+        } else {
+          boot.es <- .resample_bootstrap_es(gene.names, gene.set, data.expr, weight, n.rows,
+                                             correl.type, gene.set.direction, min.overlap,
+                                             nperm, statistic)
+          boot.res <- bootstrap_es_pvalue(ES.vector[sample.index], boot.es)
+          NES.vector[sample.index] <- boot.res$NES
+          p.val.vector[sample.index] <- boot.res$p.value
+        }
       }
     }
   }

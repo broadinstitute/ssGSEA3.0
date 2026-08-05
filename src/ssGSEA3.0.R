@@ -700,26 +700,37 @@ ssGSEA2 <- function (
             } ## end if missing values are present
 
             ## ###############################################
+            ## records overlap diagnostics for a sample that can't be scored
+            ## -- shared by the "not enough raw overlap" case below and (see
+            ## the no.usable.split check further down) a directional gene set
+            ## that clears raw min.overlap but has no usable up/down split
+            ## (gsea.score()'s lone-member rule zeroes both sides) -- without
+            ## this, such a gene set could look "scored" (fake ES=0/p=1) in
+            ## every sample yet have an empty overlap union, crashing the
+            ## per-signature GCT export downstream (subscript out of bounds)
+            record.insufficient.overlap <- function(gene.names, gene.set, gene.set.direction) {
+                OL.numb <- sum(gene.names %in% gene.set)
+                OL <- NA
+                if (OL.numb > 0) {
+                    if (is.null(gene.set.direction)) {
+                        OL <- paste(intersect(gene.names, gene.set), collapse = '|')
+                    } else {
+                        OL <- paste(paste(gene.set, gene.set.direction, sep = ';')[na.omit(match(gene.names, gene.set))], collapse = '|')
+                    }
+                }
+                list(OL = OL, OL.numb = OL.numb, OL.perc = round(100 * (OL.numb / size.G.current), 1))
+            }
+
+            ## ###############################################
             ## if there is NOT sufficient overlap...
             if(sum(gene.names %in% gene.set) < min.overlap){
-              
-                random.walk[[sample.index]] <- NA
-                OL.numb.vector[sample.index] <- sum(gene.names %in% gene.set)
-                
-                ## if there was any overlap, report the part of the signature
-                if(OL.numb.vector[sample.index] > 0){
-                  
-                  if(is.null(gene.set.direction)){
-                     OL.vector[ sample.index ] <- paste( intersect(gene.names, gene.set), collapse='|')
-                  } else {
-                     ##OL.vector[ sample.index ] <- paste( paste(gene.set, gene.set.direction, sep=';')[ na.omit(match(gene.names, sub(';u$|;d$', '', gene.set) )) ], collapse='|')
-                    OL.vector[ sample.index ] <- paste( paste(gene.set, gene.set.direction, sep=';')[ na.omit(match(gene.names, gene.set )) ], collapse='|')
-                  }
 
-                }
-                
-                OL.perc.vector[sample.index] <- round( 100*(OL.numb.vector[sample.index] / size.G.current), 1)
-            
+                random.walk[[sample.index]] <- NA
+                ins <- record.insufficient.overlap(gene.names, gene.set, gene.set.direction)
+                OL.vector[sample.index] <- ins$OL
+                OL.numb.vector[sample.index] <- ins$OL.numb
+                OL.perc.vector[sample.index] <- ins$OL.perc
+
             } else {
 
                 ## locations of gene set in input data (before ranking/ordering)
@@ -741,36 +752,56 @@ ssGSEA2 <- function (
                 ## ##############################################
                 ## calculate enrichment score
                 GSEA.results <- gsea.score (gene.list, gene.set2, weight, n.rows, correl.type, aligned$gene.set.direction, data.expr)
+
+                ## a directional gene set can clear the raw min.overlap check
+                ## above yet still have no usable up/down split for this
+                ## sample -- gsea.score()'s lone-member rule zeroes both
+                ## sides' ES/indicator in that case. Treat it the same as
+                ## "not enough raw overlap" (NA, not a fake zero score) so it
+                ## doesn't count as "scored" upstream.
+                no.usable.split <- !is.null(gene.set.direction) &&
+                    length(GSEA.results$indicator$u) == 0 && length(GSEA.results$indicator$d) == 0
+
+                if (no.usable.split) {
+
+                    random.walk[[sample.index]] <- NA
+                    ins <- record.insufficient.overlap(gene.names, gene.set, gene.set.direction)
+                    OL.vector[sample.index] <- ins$OL
+                    OL.numb.vector[sample.index] <- ins$OL.numb
+                    OL.perc.vector[sample.index] <- ins$OL.perc
+
+                } else {
+
                 ES.vector[sample.index] <- GSEA.results$ES
 
                 ## overlap between gene set and data
                 if(is.null(gene.set.direction)){
-                  
+
                   OL.vector[ sample.index ] <- paste( unique( gene.names[gene.list][GSEA.results$indicator ]) , collapse='|')
                   OL.numb.vector[sample.index ] <- length( unique( gene.names[gene.list][GSEA.results$indicator ]) )
                   OL.perc.vector[sample.index ] <- round(100*( OL.numb.vector[ sample.index ]/size.G.current  ),1)
-                  
+
                 } else { # separately for up/down
-                  
+
                   ol.tmp <- c()
                   if( length(GSEA.results$indicator$u) > 0)
                     ol.tmp <-  c(ol.tmp, paste( unique( gene.names[gene.list][GSEA.results$indicator$u ]), 'u', sep=';'))
                   if(length(GSEA.results$indicator$d) > 0)
                     ol.tmp <-  c(ol.tmp, paste( unique( gene.names[gene.list][GSEA.results$indicator$d ]), 'd', sep=';'))
-                  
+
                   OL.vector[ sample.index ] <- paste( ol.tmp, collapse='|')
-                  
+
                   ## absolute numbers
                   OL.numb.vector[sample.index ] <- length( ol.tmp )
-                                                             
-                  ## percent                                         
+
+                  ## percent
                   OL.perc.vector[sample.index ] <- round(100*( OL.numb.vector[ sample.index ]/size.G.current ),1)
                 }
-                
-                #OL.vector[sample.index] <- paste( gene.names[ GSEA.results$indicator ], collapse='/' ) 
-                #OL.vector[sample.index] <- paste( gene.set[gene.set2] , collapse='/' ) 
-                
-                
+
+                #OL.vector[sample.index] <- paste( gene.names[ GSEA.results$indicator ], collapse='/' )
+                #OL.vector[sample.index] <- paste( gene.set[gene.set2] , collapse='/' )
+
+
                 ## store the gsea results to
                 random.walk[[sample.index]] <- GSEA.results
 
@@ -872,6 +903,7 @@ ssGSEA2 <- function (
                         # p.val.vector[sample.index] <- max(1 / (B + 1), min(1, p.val.vector[sample.index]))
                     }
                 } ## end bootstrap
+                } ## end no.usable.split else
             } ## end minimal overlap required
         }
         return(list(ES.vector = ES.vector, NES.vector =  NES.vector, p.val.vector = p.val.vector, OL.vector=OL.vector, OL.numb.vector=OL.numb.vector, OL.perc.vector=OL.perc.vector, gene.set.size=gene.set.size, random.walk = random.walk))
