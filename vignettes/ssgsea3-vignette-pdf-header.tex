@@ -1,0 +1,52 @@
+\usepackage{fontspec}
+\setmainfont{Arial Unicode MS}
+\setsansfont{Arial Unicode MS}
+
+\usepackage{xcolor}
+\definecolor{accent}{HTML}{1F4E5F}
+\definecolor{accentlight}{HTML}{EAF1F4}
+
+\usepackage{titling}
+\pretitle{\begin{center}\Huge\bfseries\color{accent}}
+\posttitle{\par\end{center}\vspace{2pt}}
+\preauthor{\begin{center}\large}
+\postauthor{\end{center}}
+\predate{\begin{center}\normalsize\color{gray}}
+\postdate{\par\end{center}\vspace{6pt}\noindent{\color{accent}\hrule height 1.2pt}\vspace{18pt}}
+
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries\color{accent}}{\thesection}{0.6em}{}[{\color{accent}\titlerule[0.8pt]}]
+\titleformat{\subsection}{\large\bfseries\color{accent}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{accent}}{\thesubsubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{18pt}{10pt}
+\titlespacing*{\subsection}{0pt}{14pt}{6pt}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\small\color{gray}\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+\usepackage{booktabs}
+\usepackage{caption}
+\captionsetup{font=normalsize, labelfont={bf,color=accent}}
+
+% Pin every figure exactly where it appears in the text
+\usepackage{float}
+\let\origfigure\figure
+\let\endorigfigure\endfigure
+\renewenvironment{figure}[1][2]{
+  \origfigure[H]
+}{
+  \endorigfigure
+}
+
+\usepackage[hyphens]{url}
+
+% pandoc's code/output blocks (Verbatim, via fancyvrb) don't soft-wrap long
+% unbroken lines by default -- e.g. sessionInfo()'s BLAS/LAPACK path -- so
+% they silently overflow the page margin instead. fvextra adds wrapping,
+% including mid-word if there's nowhere else to break.
+\usepackage{fvextra}
+\fvset{breaklines=true, breakanywhere=true}

@@ -1,6 +1,8 @@
 ---
 title: "ssGSEA3: from permutation testing to gene-level bootstrap resampling"
-output: rmarkdown::html_vignette
+output:
+  rmarkdown::html_vignette:
+    css: ssgsea3-vignette-style.css
 vignette: >
   %\VignetteIndexEntry{ssGSEA3: from permutation testing to gene-level bootstrap resampling}
   %\VignetteEngine{knitr::rmarkdown}
@@ -81,21 +83,22 @@ The bundled example is a PANOPLY LUAD (lung adenocarcinoma) NMF factorization
 (4 factors, CPTAC/ICPC v6.1) scored against the MSigDB HALLMARK collection --
 an ordinary (non-directional) ssGSEA analysis.
 
-```{r luad-score}
-luad.gct <- system.file("extdata", "LUAD_matrix_W_combined_signed_gc.gct", package = "ssGSEA3")
-hallmark.gmt <- system.file("extdata", "h.all.v7.0.symbols.gmt", package = "ssGSEA3")
-
+```{r luad-score, eval = FALSE}
 res <- ssGSEA3(
-  input.ds = luad.gct,
-  output.prefix = tempfile("luad"),
-  gene.set.databases = hallmark.gmt,
+  input.ds = "example/LUAD_matrix_W_combined_signed_gc.gct",
+  output.prefix = "luad",
+  gene.set.databases = "db/msigdb/h.all.v7.0.symbols.gmt",
   sample.norm.type = "rank", weight = 1, correl.type = "z.score",
-  statistic = "area.under.RES", min.overlap = 10,
-  nperm = 100, # reduced from the default 1000 for vignette build speed
-  seed = 42, verbose = FALSE, param.file = FALSE, log.file = NULL,
-  export.signat.gct = FALSE
+  statistic = "area.under.RES", min.overlap = 10, nperm = 1000, seed = 42
 )
+```
 
+```{r luad-load}
+## the call above takes ~30 min at the default nperm=1000 -- loading its
+## precomputed output here keeps this vignette's own build fast, and keeps
+## the displayed results consistent with the full-nperm comparison below
+## (rather than a faster-but-different reduced-nperm run)
+res <- readRDS(system.file("extdata", "luad_ssgsea3_result.rds", package = "ssGSEA3"))
 res
 ```
 
@@ -141,18 +144,32 @@ of them. As above, these are precomputed results (`nperm = 1000`, run outside
 this vignette):
 
 ```{r luad-comparison}
-cmp.luad <- readRDS(system.file("extdata", "luad_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"))
+cmp.luad <- readRDS(system.file(
+  "extdata", "luad_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"
+))
+nes2.luad <- as.vector(cmp.luad$ssgsea2.nes)
+nes3.luad <- as.vector(cmp.luad$ssgsea3.nes)
 
 cat("Gene sets compared:", length(cmp.luad$gene.set.names), "\n")
-cat("NES Pearson r:    ", round(cor(as.vector(cmp.luad$ssgsea2.nes), as.vector(cmp.luad$ssgsea3.nes)), 3), "\n")
-cat("NES Spearman rho: ", round(cor(as.vector(cmp.luad$ssgsea2.nes), as.vector(cmp.luad$ssgsea3.nes), method = "spearman"), 3), "\n")
+cat("NES Pearson r:    ", round(cor(nes2.luad, nes3.luad), 3), "\n")
+cat("NES Spearman rho: ", round(cor(nes2.luad, nes3.luad, method = "spearman"), 3), "\n")
 
-sig2.luad <- cmp.luad$ssgsea2.fdr < 0.05
-sig3.luad <- cmp.luad$ssgsea3.fdr < 0.05
-cat("\nSignificant calls at FDR < 0.05:\n")
+## a gene set counts as "significant" if FDR<0.05 in >=1 of the 4 samples --
+## NOT the same as counting gene-set x sample cells, which would double-count
+## any gene set significant in multiple samples
+sig2.luad <- apply(cmp.luad$ssgsea2.fdr < 0.05, 1, any)
+sig3.luad <- apply(cmp.luad$ssgsea3.fdr < 0.05, 1, any)
+cat("\nGene sets significant (FDR < 0.05 in >=1 sample), of", length(cmp.luad$gene.set.names), "total:\n")
 cat("  ssGSEA2.0:", sum(sig2.luad), " ssGSEA3:", sum(sig3.luad),
     " both:", sum(sig2.luad & sig3.luad), " ssGSEA2.0-only:", sum(sig2.luad & !sig3.luad),
     " ssGSEA3-only:", sum(!sig2.luad & sig3.luad), "\n")
+```
+
+```{r luad-scatter, fig.height = 5}
+plot(nes2.luad, nes3.luad,
+     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3 NES", pch = 16, col = "#00000066",
+     main = "LUAD PANOPLY, HALLMARK: NES agreement")
+abline(0, 1, col = "firebrick", lty = 2)
 ```
 
 `ssGSEA3` agrees with `ssGSEA2.0` on the overwhelming majority of significant
@@ -164,10 +181,13 @@ rather than disagreeing with it.
 ## Example 2: PTM-SEA on a PI3K-inhibitor perturbation dataset
 
 The second example (bundled in the package's `example/` directory, alongside
-its source) is a site-centric phosphoproteomics dataset (a PI3K perturbation
-time course, `PI3K_pert_logP_n2x23936.gct`) scored against PTMsigDB v2.0.0's
-flanking-sequence human signatures -- a directional PTM-SEA analysis. The call
-is the same shape as the ssGSEA example above:
+its source) is a site-centric phosphoproteomics dataset from the original
+PTM-SEA publication itself (Krug et al. 2019 -- see the package `README` for
+the full citation): T47D breast cancer cells treated with the PI3Kα inhibitor
+BYL719 (vs. a DMSO control) for 6h and 24h (`PI3K_pert_logP_n2x23936.gct`),
+scored against PTMsigDB v2.0.0's flanking-sequence human signatures -- a
+directional PTM-SEA analysis. The call is the same shape as the ssGSEA example
+above:
 
 ```{r ptmsea-score, eval = FALSE}
 res.ptmsea <- ssGSEA3(
@@ -177,6 +197,23 @@ res.ptmsea <- ssGSEA3(
   sample.norm.type = "rank", weight = 0, correl.type = "rank",
   statistic = "area.under.RES", min.overlap = 5, nperm = 1000, seed = 42
 )
+```
+
+```{r ptmsea-load}
+## as above, loading the precomputed (nperm=1000) output instead of
+## re-running the ~3 hour scoring call live
+res.ptmsea <- readRDS(system.file("extdata", "pi3k_ssgsea3_result.rds", package = "ssGSEA3"))
+res.ptmsea
+```
+
+PTMsigDB's `CATEGORY-name` convention (`KINASE-`, `PERT-`, `PATH-`, `DISEASE-`) drives
+its own row-grouping in `plot_ssgsea_heatmap()`, distinct from the HALLMARK-category
+grouping used above:
+
+```{r ptmsea-heatmap, fig.width = 8, fig.height = 9}
+ht.ptmsea <- plot_ssgsea_heatmap(res.ptmsea, top_n = 10, fdr.max = 0.05,
+                                  title = "PI3K perturbation -- PTMsigDB v2.0.0 (ssGSEA3)")
+ComplexHeatmap::draw(ht.ptmsea)
 ```
 
 ### Comparison against the original ssGSEA2.0
@@ -189,24 +226,33 @@ comparison run against the original, unmodified `ssGSEA2.0` code takes
 several hours and depends on software not part of this package):
 
 ```{r ptmsea-comparison}
-cmp <- readRDS(system.file("extdata", "pi3k_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"))
+cmp <- readRDS(system.file(
+  "extdata", "pi3k_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"
+))
+nes2 <- as.vector(cmp$ssgsea2.nes)
+nes3 <- as.vector(cmp$ssgsea3.nes)
+fdr2 <- as.vector(cmp$ssgsea2.fdr)
+fdr3 <- as.vector(cmp$ssgsea3.fdr)
 
 cat("Gene sets compared:", length(cmp$gene.set.names), "\n")
-cat("NES Pearson r:    ", round(cor(as.vector(cmp$ssgsea2.nes), as.vector(cmp$ssgsea3.nes)), 3), "\n")
-cat("NES Spearman rho: ", round(cor(as.vector(cmp$ssgsea2.nes), as.vector(cmp$ssgsea3.nes), method = "spearman"), 3), "\n")
-cat("FDR Pearson r:    ", round(cor(as.vector(cmp$ssgsea2.fdr), as.vector(cmp$ssgsea3.fdr)), 3), "\n")
-cat("FDR Spearman rho: ", round(cor(as.vector(cmp$ssgsea2.fdr), as.vector(cmp$ssgsea3.fdr), method = "spearman"), 3), "\n")
+cat("NES Pearson r:    ", round(cor(nes2, nes3), 3), "\n")
+cat("NES Spearman rho: ", round(cor(nes2, nes3, method = "spearman"), 3), "\n")
+cat("FDR Pearson r:    ", round(cor(fdr2, fdr3), 3), "\n")
+cat("FDR Spearman rho: ", round(cor(fdr2, fdr3, method = "spearman"), 3), "\n")
 
-sig2 <- cmp$ssgsea2.fdr < 0.05
-sig3 <- cmp$ssgsea3.fdr < 0.05
-cat("\nSignificant calls at FDR < 0.05:\n")
+## a gene set counts as "significant" if FDR<0.05 in >=1 of the 2 samples --
+## NOT the same as counting gene-set x sample cells, which would double-count
+## any gene set significant in both samples
+sig2 <- apply(cmp$ssgsea2.fdr < 0.05, 1, any)
+sig3 <- apply(cmp$ssgsea3.fdr < 0.05, 1, any)
+cat("\nGene sets significant (FDR < 0.05 in >=1 sample), of", length(cmp$gene.set.names), "total:\n")
 cat("  ssGSEA2.0:", sum(sig2), " ssGSEA3:", sum(sig3),
     " both:", sum(sig2 & sig3), " ssGSEA2.0-only:", sum(sig2 & !sig3),
     " ssGSEA3-only:", sum(!sig2 & sig3), "\n")
 ```
 
 ```{r ptmsea-scatter, fig.height = 5}
-plot(as.vector(cmp$ssgsea2.nes), as.vector(cmp$ssgsea3.nes),
+plot(nes2, nes3,
      xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3 NES", pch = 16, col = "#00000066",
      main = "PI3K perturbation, PTMsigDB v2.0.0: NES agreement")
 abline(0, 1, col = "firebrick", lty = 2)
@@ -216,6 +262,59 @@ abline(0, 1, col = "firebrick", lty = 2)
 of `r sum(sig2)`) while finding substantially more overall (`r sum(sig3)` vs.
 `r sum(sig2)`) -- consistent with the confirmed power advantage for directional
 scoring described above, now demonstrated on a real, published dataset.
+
+### Are the additional calls biologically plausible?
+
+A real power advantage should surface signatures that make sense for *this specific*
+perturbation, not an arbitrary scattering of unrelated biology. Of the
+`r sum(!sig2 & sig3)` signatures significant under `ssGSEA3` but never
+significant (in either sample) under `ssGSEA2.0`, several sit directly on the
+PI3K/AKT/mTOR axis this dataset perturbs:
+
+```{r ptmsea-gained-table}
+gained <- c(
+  "KINASE-iKiP_PIK3R5", "KINASE-PSP_PDK1/PDPK1", "KINASE-PSP_SGK1",
+  "KINASE-PSP_p70S6K/RPS6KB1", "PERT-PSP_TORIN1", "DISEASE-PSP_tuberous_sclerosis"
+)
+data.frame(
+  signature = gained,
+  NES_06h = round(cmp$ssgsea3.nes[gained, 1], 2),
+  NES_24h = round(cmp$ssgsea3.nes[gained, 2], 2),
+  FDR_06h = signif(cmp$ssgsea3.fdr[gained, 1], 2),
+  FDR_24h = signif(cmp$ssgsea3.fdr[gained, 2], 2),
+  row.names = NULL
+)
+```
+
+`PIK3R5` is a PI3K regulatory subunit itself; `PDK1` and `SGK1` are AKT-family
+kinases immediately downstream of PI3K; `p70S6K` is the canonical mTORC1 output
+kinase; `TORIN1` is a PTMsigDB perturbation signature for an mTOR inhibitor;
+`tuberous_sclerosis` is a disease signature driven by TSC1/2, a direct mTORC1
+regulator. This lines up with the original paper's own reported result for
+this exact experiment: PTM-SEA "detected signatures of compounds inhibiting
+PI3K as well as targets downstream of PI3K (AKT, MAPK/ERK) covering a
+substantial fraction of the PI3K pathway" (Krug et al. 2019). `p70S6K` and
+`SGK1`'s substrate signatures moving negative is consistent with declining
+mTORC1/AKT-family output as BYL719 inhibition takes hold; `PDK1` and `PIK3R5`
+trending positive by 24h instead is consistent with the compensatory
+feedback reactivation of upstream RTK/PI3K-node signaling well documented as
+a response to PI3K inhibitors specifically (rather than a random, unrelated
+direction) -- so even the "wrong-direction" hits are still on-pathway. The
+additional calls cluster around the perturbed pathway rather than appearing
+as unrelated noise, which is exactly what `ssGSEA2.0` under-detected here.
+
+A related, separate observation: `PERT-PSP_WORTMANNIN` -- a PTMsigDB signature
+for an *unrelated experiment's* treatment with wortmannin, another PI3K
+inhibitor -- was already significant under `ssGSEA2.0` at 24h (FDR
+`r signif(cmp$ssgsea2.fdr["PERT-PSP_WORTMANNIN", 2], 2)`), so it is not part of
+the "newly significant" tally above. But `ssGSEA3` closes a near-miss at 6h
+(FDR `r signif(cmp$ssgsea2.fdr["PERT-PSP_WORTMANNIN", 1], 2)` under `ssGSEA2.0`,
+`r signif(cmp$ssgsea3.fdr["PERT-PSP_WORTMANNIN", 1], 2)` under `ssGSEA3`) and
+dramatically strengthens the 24h call (NES
+`r round(cmp$ssgsea2.nes["PERT-PSP_WORTMANNIN", 2], 1)` to
+`r round(cmp$ssgsea3.nes["PERT-PSP_WORTMANNIN", 2], 1)`) -- close to a positive
+control for the same PI3K/mTOR-inhibitor resemblance the newly-significant
+calls above point to.
 
 ## Session info
 

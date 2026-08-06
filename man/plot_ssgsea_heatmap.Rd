@@ -13,6 +13,7 @@ plot_ssgsea_heatmap(
   samples = NULL,
   split_by_db_category = TRUE,
   cluster_rows = TRUE,
+  cell.size = 10,
   title = NULL
 )
 }
@@ -37,6 +38,12 @@ doesn't apply.}
 \item{cluster_rows}{Whether to hierarchically cluster rows when neither
 HALLMARK nor prefix-based grouping applies. Ignored (rows are left in
 \code{terms} order within each split) when either grouping does apply.}
+
+\item{cell.size}{Fixed cell width/height, in points, matching \code{pw_hm()}'s
+own \code{cw}/\code{ch} default of 10 -- keeps cells square regardless of the
+number of rows/columns, rather than stretching to fill the plotting
+device (which is what a bare \code{ComplexHeatmap::Heatmap()} call does by
+default when \code{width}/\code{height} aren't set).}
 
 \item{title}{Optional heatmap title.}
 }

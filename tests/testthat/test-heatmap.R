@@ -1,5 +1,6 @@
 make_result <- function(terms, scores, fdr, sample.names = c("S1", "S2")) {
-  structure(list(scores = scores, fdr = fdr, gs.names = terms, sample.names = sample.names),
+  structure(list(scores = scores, fdr = fdr, gs.names = terms, sample.names = sample.names,
+                 output.score.type = "NES"),
             class = "ssgsea_result")
 }
 
@@ -83,17 +84,70 @@ test_that("plot_ssgsea_heatmap: cluster_rows=FALSE is respected for the generic 
   expect_false(ht@row_dend_param$cluster)
 })
 
-test_that("plot_ssgsea_heatmap: color scale is symmetric around zero, sized to the data", {
+test_that("plot_ssgsea_heatmap: color scale is zero-centered but NOT forced symmetric, sized to the actual data range", {
   terms <- c("A", "B")
   scores <- matrix(c(2.3, -7.8, 1, -1), nrow = 2, dimnames = list(terms, c("S1", "S2")))
   fdr <- matrix(runif(4), nrow = 2, dimnames = list(terms, c("S1", "S2")))
   result <- make_result(terms, scores, fdr)
 
   ht <- plot_ssgsea_heatmap(result, terms = terms)
-  ## col_fun's breaks should span [-8, 8] (ceiling of max |score| = 7.8 -> 8)
+  ## breaks should span [floor(min), ceiling(max)] = [-8, 3] -- NOT
+  ## [-8, 8] -- forcing symmetry around the larger-magnitude side wastes
+  ## color resolution and misleadingly implies values that don't occur
   col_fun <- ht@matrix_color_mapping@col_fun
   breaks <- environment(col_fun)$breaks
-  expect_equal(range(breaks), c(-8, 8))
+  expect_equal(range(breaks), c(-8, 3))
+})
+
+test_that("plot_ssgsea_heatmap: legend name reflects the result's actual score type", {
+  terms <- c("A", "B")
+  scores <- matrix(c(1, -1, 2, -2), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+  fdr <- matrix(runif(4), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+
+  result.nes <- make_result(terms, scores, fdr)
+  ht.nes <- plot_ssgsea_heatmap(result.nes, terms = terms)
+  expect_equal(ht.nes@matrix_color_mapping@name, "NES")
+
+  result.es <- make_result(terms, scores, fdr)
+  result.es$output.score.type <- "ES"
+  ht.es <- plot_ssgsea_heatmap(result.es, terms = terms)
+  expect_equal(ht.es@matrix_color_mapping@name, "ES")
+})
+
+test_that("plot_ssgsea_heatmap: cells are fixed-size (square), not stretched to fill the device", {
+  terms <- c("A", "B", "C")
+  scores <- matrix(rnorm(6), nrow = 3, dimnames = list(terms, c("S1", "S2")))
+  fdr <- matrix(runif(6), nrow = 3, dimnames = list(terms, c("S1", "S2")))
+  result <- make_result(terms, scores, fdr)
+
+  ht <- plot_ssgsea_heatmap(result, terms = terms, cell.size = 12)
+  expect_equal(ht@matrix_param$width, grid::unit(2 * 12, "points"))
+  expect_equal(ht@matrix_param$height, grid::unit(3 * 12, "points"))
+})
+
+test_that("plot_ssgsea_heatmap: significance asterisks switch to white on dark cell fills", {
+  terms <- c("A", "B", "C")
+  scores <- matrix(rnorm(3), nrow = 3, dimnames = list(terms, "S1"))
+  fdr <- matrix(0.001, nrow = 3, ncol = 1, dimnames = list(terms, "S1")) ## all significant
+  result <- make_result(terms, scores, fdr, sample.names = "S1")
+  ht <- plot_ssgsea_heatmap(result, terms = terms)
+  cell_fun <- ht@matrix_param$cell_fun
+
+  star.col <- character(0)
+  fake.grid.text <- function(label, x, y, gp = grid::gpar()) {
+    star.col[[length(star.col) + 1]] <<- gp$col
+  }
+  testthat::local_mocked_bindings(grid.text = fake.grid.text, .package = "grid")
+
+  pdf(tempfile(fileext = ".pdf")) ## grid.rect() needs an open device
+  on.exit(dev.off(), add = TRUE)
+  grid::grid.newpage()
+  cell_fun(1, 1, grid::unit(0.5, "npc"), grid::unit(0.5, "npc"),
+           grid::unit(1, "npc"), grid::unit(1, "npc"), fill = "blue3") ## very dark
+  cell_fun(1, 1, grid::unit(0.5, "npc"), grid::unit(0.5, "npc"),
+           grid::unit(1, "npc"), grid::unit(1, "npc"), fill = "#FFEEEE") ## very light
+
+  expect_equal(star.col, c("white", "black"))
 })
 
 test_that("plot_ssgsea_heatmap: default term selection defers to select_top_terms()", {

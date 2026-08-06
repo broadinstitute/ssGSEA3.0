@@ -34,6 +34,11 @@
 #' @param cluster_rows Whether to hierarchically cluster rows when neither
 #'   HALLMARK nor prefix-based grouping applies. Ignored (rows are left in
 #'   `terms` order within each split) when either grouping does apply.
+#' @param cell.size Fixed cell width/height, in points, matching `pw_hm()`'s
+#'   own `cw`/`ch` default of 10 -- keeps cells square regardless of the
+#'   number of rows/columns, rather than stretching to fill the plotting
+#'   device (which is what a bare `ComplexHeatmap::Heatmap()` call does by
+#'   default when `width`/`height` aren't set).
 #' @param title Optional heatmap title.
 #' @return A [ComplexHeatmap::Heatmap-class] object -- draw it with
 #'   `ComplexHeatmap::draw()`, or save with e.g. `pdf()`/`png()` around that
@@ -42,7 +47,7 @@
 plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
                                  direction = c("both", "pos", "neg"), fdr.max = 0.05,
                                  samples = NULL, split_by_db_category = TRUE,
-                                 cluster_rows = TRUE, title = NULL) {
+                                 cluster_rows = TRUE, cell.size = 10, title = NULL) {
   if (is.null(terms)) {
     terms <- select_top_terms(result, top_n = top_n, direction = direction, fdr.max = fdr.max)
   }
@@ -88,24 +93,43 @@ plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
     do.cluster <- FALSE
   }
 
-  max.val <- ceiling(max(abs(mat), na.rm = TRUE))
-  col_fun <- circlize::colorRamp2(c(-max.val, 0, max.val), c("blue3", "white", "#DC3220"))
+  ## zero-centered but *not* forced symmetric -- an equal-magnitude scale
+  ## wastes most of its resolution (and looks like a bug: a legend that goes
+  ## to -40 when nothing in the data is more negative than -12) whenever the
+  ## positive and negative extremes differ, which real scores usually do
+  max.val <- ceiling(max(mat, na.rm = TRUE))
+  min.val <- floor(min(mat, na.rm = TRUE))
+  col_fun <- circlize::colorRamp2(c(min.val, 0, max.val), c("blue3", "white", "#DC3220"))
 
   ComplexHeatmap::Heatmap(
     mat,
-    name = "Score",
+    name = result$output.score.type,
     col = col_fun,
     na_col = "gray",
+    width = grid::unit(ncol(mat) * cell.size, "points"),
+    height = grid::unit(nrow(mat) * cell.size, "points"),
     row_split = row_split,
     cluster_row_slices = FALSE,
     cluster_rows = do.cluster,
     cluster_columns = FALSE,
     row_labels = row_labels,
+    ## ComplexHeatmap's own default (6cm) silently truncates long gene set
+    ## names (e.g. full HALLMARK_* names) regardless of device size -- this
+    ## widens the cap rather than raising it per-plot from the caller side
+    row_names_max_width = grid::unit(12, "cm"),
     left_annotation = left_annotation,
     cell_fun = function(j, i, x, y, width, height, fill) {
       grid::grid.rect(x = x, y = y, width = width, height = height, gp = grid::gpar(col = "#555555", fill = fill))
       if (!is.na(fdr[i, j]) && fdr[i, j] < fdr.max) {
-        grid::grid.text("*", x, y)
+        ## switch to white on dark fills (e.g. deep blue) so the marker
+        ## stays legible -- perceived-brightness (YIQ) formula, standard
+        ## threshold of 0.5 on a 0-1 scale
+        rgb <- grDevices::col2rgb(fill) / 255
+        luminance <- 0.299 * rgb[1] + 0.587 * rgb[2] + 0.114 * rgb[3]
+        star.col <- if (luminance < 0.5) "white" else "black"
+        ## nudge down slightly -- "*" sits high within its own glyph box in
+        ## most fonts, so an unadjusted y leaves it looking top-aligned
+        grid::grid.text("*", x, y - grid::unit(0.15, "char"), gp = grid::gpar(col = star.col))
       }
     },
     column_title = title,
