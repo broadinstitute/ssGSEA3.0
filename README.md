@@ -1,20 +1,62 @@
-# ssGSEA2.0/PTM-SEA
+# ssGSEA3
 
+An installable R package for gene-centric **single sample Gene Set Enrichment
+Analysis (ssGSEA)** of expression data (e.g. mRNAs, proteins) and site-centric
+**PTM Signature Enrichment Analysis (PTM-SEA)** [1] of phosphoproteomics data
+using the [**PTM signatures database (PTMsigDB)**](https://proteomics.broadapps.org/ptmsigdb/) [1].
 
-
-Resources for gene-centric **single sample Gene Set Enrichment Analysis (ssGSEA)** of gene expression data (e.g. mRNAs, proteins) and site-centric **PTM Signature Enrichment Analysis (PTM-SEA)** [1] of phosphoproteomics data sets using the [**PTM signatures database (PTMsigDB)**](https://proteomics.broadapps.org/ptmsigdb/) [1].
+`ssGSEA3` replaces `ssGSEA2.0`'s gene-label permutation testing with a
+gene-level bootstrap for significance, fixing a known weight-dependent
+calibration issue in the original approach without losing statistical power
+-- see `vignette("ssgsea2-vs-ssgsea3-comparison")` for the full story and a
+side-by-side comparison against the original `ssGSEA2.0` on real data.
 
 
 ## Disclaimer
 
-The primary purpose of this repository is to supplement our [manuscript](https://www.mcponline.org/content/18/3/576.abstract) in which we describe PTM-SEA and [PTMsigDB](https://proteomics.broadapps.org/ptmsigdb/). While ssGSEA2.0 presents an updated version of the original ssGSEA R implementation, we want to acknowledge that this is **not the primary repository for ssGSEA**. The official codebase for ssGSEA can be found [here](https://github.com/GSEA-MSigDB/ssGSEA-gpmodule), and the official GenePattern module to perform ssGSEA can be accessed [here](https://www.genepattern.org/modules/docs/ssGSEAProjection/4).
+The primary purpose of this repository is to supplement our [manuscript](https://www.mcponline.org/content/18/3/576.abstract) in which we describe PTM-SEA and [PTMsigDB](https://proteomics.broadapps.org/ptmsigdb/). While `ssGSEA3` presents an updated version of the original ssGSEA R implementation, we want to acknowledge that this is **not the primary repository for ssGSEA**. The official codebase for ssGSEA can be found [here](https://github.com/GSEA-MSigDB/ssGSEA-gpmodule), and the official GenePattern module to perform ssGSEA can be accessed [here](https://www.genepattern.org/modules/docs/ssGSEAProjection/4).
 
 
-## ssGSEA 2.0
+## Installation
 
-This is an updated version of the original ssGSEA [2,3] R-implementation. Depending on the input dataset and chosen database (gene sets or PTM signatures), the software performs either ssGSEA or PTM-SEA, respectively. The Molecular Signatures Database ([MSigDB](http://software.broadinstitute.org/gsea/msigdb/)) [4] provides a large collection of curated gene sets.  Gene sets are stored as plain text in  [GMT](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GMT:_Gene_Matrix_Transposed_file_format_.28.2A.gmt.29) format. A current version of MSigDB gene set collections can be found in the ```db/msigdb``` subfolder. MSigDB gene sets are realeased under [Creative Commons Attribution 4.0 International License](http://software.broadinstitute.org/gsea/msigdb_license_terms.jsp). The license terms can be found in the```db/msigdb``` folder.
+```r
+# install.packages("remotes")
+remotes::install_github("broadinstitute/ssGSEA3.0", build_vignettes = TRUE)
+```
 
-File formats supported by ssGSEA2.0/PTM-SEA are Gene Cluster Text [GCT v1.2](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GCT:_Gene_Cluster_Text_file_format_.28.2A.gct.29) or [GCT v1.3](https://clue.io/connectopedia/gct_format) files. [Morpheus](https://software.broadinstitute.org/morpheus/) provides a convenient way to convert your data tables into GCT format.
+
+## Quick start
+
+`ssGSEA3` covers the full pipeline from a raw GCT file to a summary heatmap:
+
+```r
+library(ssGSEA3)
+
+# 1. (optional) preprocess a raw GCT into a gene-centric or site-centric report
+# preprocessGCT(...)
+
+# 2. score samples against a gene set database, with bootstrap significance
+result <- ssGSEA3(
+  input.ds = "my_data.gct",
+  output.prefix = "my_run",
+  gene.set.databases = "my_gene_sets.gmt"
+)
+
+# 3. summarize as a heatmap
+ht <- plot_ssgsea_heatmap(result)
+ComplexHeatmap::draw(ht)
+```
+
+See `vignette("ssgsea2-vs-ssgsea3-comparison")` for two full worked examples
+(ordinary ssGSEA on tumor expression data, and directional PTM-SEA on
+phosphoproteomics data) using the datasets bundled in `example/`.
+
+
+## ssGSEA
+
+This is an updated version of the original ssGSEA [2,3] R-implementation. Depending on the input dataset and chosen database (gene sets or PTM signatures), the software performs either ssGSEA or PTM-SEA, respectively. The Molecular Signatures Database ([MSigDB](http://software.broadinstitute.org/gsea/msigdb/)) [4] provides a large collection of curated gene sets. Gene sets are stored as plain text in  [GMT](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GMT:_Gene_Matrix_Transposed_file_format_.28.2A.gmt.29) format. A current version of MSigDB gene set collections can be found in the ```db/msigdb``` subfolder. MSigDB gene sets are realeased under [Creative Commons Attribution 4.0 International License](http://software.broadinstitute.org/gsea/msigdb_license_terms.jsp). The license terms can be found in the ```db/msigdb``` folder.
+
+File formats supported are Gene Cluster Text [GCT v1.2](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GCT:_Gene_Cluster_Text_file_format_.28.2A.gct.29) or [GCT v1.3](https://clue.io/connectopedia/gct_format) files. [Morpheus](https://software.broadinstitute.org/morpheus/) provides a convenient way to convert your data tables into GCT format.
 
 For more information about the GSEA method and MSigDB please visit http://software.broadinstitute.org/gsea/.
 
@@ -33,68 +75,43 @@ To ensure a high degree of compatibility to phosphorylation datasets generated b
 | Flanking sequence | +/-7aa flanking seq-type;direction | ETRICKIYDSPCLPE-p;u | ETRICKIYDSPCLPE-p | [human](https://raw.githubusercontent.com/broadinstitute/ssGSEA2.0/master/db/ptmsigdb/v2.0.0/all/ptm.sig.db.all.flanking.human.v2.0.0.gmt)<br>[mouse](https://raw.githubusercontent.com/broadinstitute/ssGSEA2.0/master/db/ptmsigdb/v2.0.0/all/ptm.sig.db.all.flanking.mouse.v2.0.0.gmt)<br>[rat](https://raw.githubusercontent.com/broadinstitute/ssGSEA2.0/master/db/ptmsigdb/v2.0.0/all/ptm.sig.db.all.flanking.rat.v2.0.0.gmt)
 | PSP site group id | site_grp_id-type;direction | 448324-p;u | 448324-p | [human](https://raw.githubusercontent.com/broadinstitute/ssGSEA2.0/master/db/ptmsigdb/v2.0.0/all/ptm.sig.db.all.sitegrpid.human.v2.0.0.gmt)<br>[mouse](https://raw.githubusercontent.com/broadinstitute/ssGSEA2.0/master/db/ptmsigdb/v2.0.0/all/ptm.sig.db.all.sitegrpid.mouse.v2.0.0.gmt)<br>[rat](https://raw.githubusercontent.com/broadinstitute/ssGSEA2.0/master/db/ptmsigdb/v2.0.0/all/ptm.sig.db.all.sitegrpid.rat.v2.0.0.gmt)
 
-Table 1: PTM site representation in PTMsigDB. The direction of change for a PTM site in a signature is indicated by ;u (up-regulation) or ;d (down-regulation). Please note that the annotation of directionality is a feature of PTMsigDB (column: *Example in PTMsigDB*) and must not be included when generating compatible site identifier for a particular dataset (column: *Example in dataset*).  
+Table 1: PTM site representation in PTMsigDB. The direction of change for a PTM site in a signature is indicated by ;u (up-regulation) or ;d (down-regulation). Please note that the annotation of directionality is a feature of PTMsigDB (column: *Example in PTMsigDB*) and must not be included when generating compatible site identifier for a particular dataset (column: *Example in dataset*).
 
 
 ## PTM-SEA
+
 PTM-Signature Enrichment Analysis (PTM-SEA) is a modified version of ssGSEA to perform site-specific signature analysis by scoring PTMsigDB's bi-directional signature-sets. The input to PTM-SEA is a single site-centric data matrix, *m*, stored in [GCT v1.2](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GCT:_Gene_Cluster_Text_file_format_.28.2A.gct.29) or [GCT v1.3](https://clue.io/connectopedia/gct_format)  format and PTM signatures database (PTMsigDB). Each row in *m* represents a single phosphorylation site confidently localized to a specific amino acid residue, with measured abundances across samples specified in columns in *m*. Multiple phosphorylation sites detected on the same peptide have to be converted into separate site-specific entities for every site. While some proteomics software packages, such as  MaxQuant [6], readily produce single site-centric PTM reports, the use of other software packages might require additional preprocessing steps.
 
 
-## How can I use these tools?
+## Example datasets
 
-ssGSEA2.0/PTM-SEA can be run on a local PC/MAC in R or RStudio. In addition, ssGSEA2.0/PTM-SEA can be access on Broad's public GenePattern [7] server. Below we provide instructions how to run ssSGEA2.0/PTM-SEA.
+`ssGSEA3` bundles two worked examples in `example/` (used by the package
+vignette):
 
-### Example dataset
-
-We provide an example dataset that can be used to test PTM-SEA. The dataset is based on Supplemental Table 6 in [1].
-
-[Single site-centric phosphoproteome dataset](https://raw.githubusercontent.com/broadinstitute/ssGSEA2.0/master/example/PI3K_pert_logP_n2x23936.gct)
-
-[PTMsigDB](https://raw.githubusercontent.com/broadinstitute/ssGSEA2.0/master/example/ptm.sig.db.all.flanking.human.v1.8.1.gmt)
-
-
-### GenePattern
-[GenePattern](http://software.broadinstitute.org/cancer/software/genepattern) is a powerful platform to deploy and run software or entire analysis pipelines in a web browser [7]. We have implemented ssGSEA2.0/PTM-SEA as GenePattern module which can be accessed at the link below. Please note that access to the public GenePattern server requires a free registration.
-
-PTM-SEA in GenePattern: https://tinyurl.com/PTM-SEA-GP
+- **Ordinary ssGSEA**: a PANOPLY LUAD tumor NMF factorization
+  (`LUAD_matrix_W_combined_signed_gc.gct`) against the MSigDB HALLMARK
+  collection (`db/msigdb/h.all.v7.0.symbols.gmt`).
+- **PTM-SEA**: a site-centric phosphoproteomics PI3K-inhibitor perturbation
+  dataset, based on Supplemental Table 6 in [1]
+  (`PI3K_pert_logP_n2x23936.gct`), against PTMsigDB v2.0.0
+  (`ptm.sig.db.all.flanking.human.v2.0.0.gmt`).
 
 
-### R-GUI / RStudio
-The script ```ssgsea-gui.R``` requires little or no knowledge of R or on how to use the command line. Input files and databases can be specified via Windows file dialogs that will be automatically invoked. The first dialog lets you choose a folder containing input files in [GCT v1.2](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GCT:_Gene_Cluster_Text_file_format_.28.2A.gct.29) or [GCT v1.3](https://clue.io/connectopedia/gct_format) format. The script loops over all GCT files in this directory and runs ssGSEA on each file separately. The second dialog window lets the user choose one or multiple gene set databases in [GMT](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GMT:_Gene_Matrix_Transposed_file_format_.28.2A.gmt.29) format such as [MSigDB](http://software.broadinstitute.org/gsea/msigdb/). A current version of MSigDB databases can be found in the ```db``` subfolder. 
+## Legacy standalone scripts
 
+This repository also retains the original standalone R scripts
+(`ssgsea-cli.R`, `preprocess_gct-cli.R`) for pipeline integrations (e.g. Terra/
+Cromwell WDL) that call them directly rather than installing the R package.
+These are not part of the installable `ssGSEA3` package itself. For
+command-line use, see ```ssgsea-cli.R --help``` and
+```preprocess_gct-cli.R --help```.
 
-##### **Windows OS**
-To run the script source it into a running R-session.
+Also for use in R, Nicole Gay maintains a separate, [community-contributed R package](https://github.com/nicolerg/ssGSEA2.0) wrapping the original `ssGSEA2.0` implementation.
 
-- [RStudio](https://www.rstudio.com/products/rstudio/download/): open the file and press 'Source' in the upper right part of the editor window 
-- [R-GUI](https://cran.r-project.org/bin/windows/base/): drag and drop this file into an R-GUI window
-
-##### **iOS/MAC** 
-In order to invoke file dialogs as decribed above, the [XQuartz](https://www.xquartz.org) X Window System is required. Once installed ```ssgsea-gui.R``` can be sourced into an R session.
-
-
-### R Package
-For use in R, Nicole Gay has created an [R package](https://github.com/nicolerg/ssGSEA2.0) that incorporates ssGSEA2.0, along with required dependencies for both R 3.6 and R >= 4.0. Instruction for use of the library can be found along with the package on [GitHub](https://github.com/nicolerg/ssGSEA2.0). 
-
-
-### Command line
-For integration of ssGSEA2.0/PTM-SEA into your own analysis pipelines we recommend to use the ```ssgsea-cli.R``` script which has been successfully tested on Windows, Mac and Linux OS. Please see ```ssgsea-cli.R --help``` for instructions.
-
-### Preprocessing input GCT
-Preprocess script `preprocess_gct-cli.R` use case:
-- Create gene-centric GCT with unique gene symbols as `rid`
-- Create site-centric GCT with PTMsigDB-compatible site identifier
-
-PTM-SEA accepts only UniProt and 7AA flanking sequence (SeqWin) format for sites. If your GCT has row IDs (`rid`) as UniProt, RefSeq or gene symbol, you can use the ```preprocess_gct-cli.R``` script to convert to the supported format. Please see ```preprocess_gct-cli.R --help``` for instructions. 
 
 ## Misc
 
-### ssGSEA2.0/PTM-SEA parameters
-
-Other parameters for ssGSEA/PTM-SEA can be altered inside the parameters section in ```ssgsea-gui.R``` or as arguments on the command line. The default parameters have been choosen carefully and should provide reliable results for most use-case scenarios. 
-
-
-### Changes to the original ssGSEA R-implementation
+### Changes from the original ssGSEA R-implementation
 
 Original code written by Pablo Tamayo. Adapted with additional modifications by D. R. Mani and Karsten Krug. Adaptions include:
 
@@ -105,6 +122,9 @@ Original code written by Pablo Tamayo. Adapted with additional modifications by 
 - basic error handling
 - improvements in runtime performance
 - additional output files like rank plots and parameter files
+- replacement of gene-label permutation testing with gene-level bootstrap
+  resampling for significance (see `vignette("ssgsea2-vs-ssgsea3-comparison")`)
+
 
 ## License
 License Agreement for MSigDB v6.0 and above can be found [here](https://raw.githubusercontent.com/broadinstitute/ssGSEA2.0/master/db/msigdb/license.txt).

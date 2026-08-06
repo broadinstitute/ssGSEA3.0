@@ -1,0 +1,224 @@
+---
+title: "ssGSEA3: from permutation testing to gene-level bootstrap resampling"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{ssGSEA3: from permutation testing to gene-level bootstrap resampling}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 6)
+```
+
+## Overview
+
+`ssGSEA3` runs single-sample Gene Set Enrichment Analysis (ssGSEA) on gene-centric
+expression data, and PTM-Signature Enrichment Analysis (PTM-SEA) on site-centric
+phosphoproteomics data scored against the directional
+[PTM signatures database (PTMsigDB)](https://proteomics.broadapps.org/ptmsigdb/).
+Significance is assessed via a gene-level bootstrap, replacing the gene-label
+permutation testing used by the original `ssGSEA2.0`.
+
+This vignette:
+
+1. explains *why* that replacement happened,
+2. walks through an ordinary ssGSEA analysis (tumor NMF factors vs. HALLMARK gene sets), and
+3. walks through a directional PTM-SEA analysis (a phosphoproteomics perturbation
+   dataset vs. PTMsigDB), comparing the result to the original `ssGSEA2.0`.
+
+```{r setup, message = FALSE}
+library(ssGSEA3)
+```
+
+## Why bootstrap instead of permutation?
+
+### A known problem with weighted scoring under permutation
+
+`ssGSEA2.0`'s significance testing permuted gene labels to build a null distribution
+for each gene set's enrichment score. This works cleanly when every gene contributes
+equally to the score (`weight = 0`), but is known to produce badly miscalibrated
+p-values whenever the score is weighted by actual expression magnitude
+(`weight > 0`) -- documented as GitHub issue #45 against the original `ssGSEA2.0`
+repository. Testing purely random, biologically meaningless gene sets at
+`weight = 0.75` gave a mean p-value of about 0.001 (i.e. almost always called
+"significant") instead of the ~0.5 expected under a true null.
+
+An informal fix -- stop reordering the correlation vector along with the permuted
+gene ranks -- corrected that calibration problem, but at a real cost: on a real
+PI3K-perturbation dataset, the same fix reduced detection of expected cell-cycle
+pathways at `weight = 0.75` from 6/14 down to 0/14 at 6 hours, and from 10/14 down
+to 3/14 at 24 hours. Fixing the false-positive problem this way also suppressed real
+signal -- a fundamental validity-vs-power tension that a purely permutation-based
+approach could not resolve.
+
+`ssGSEA3` sidesteps this entirely by resampling genes (not gene labels) with
+replacement and deriving significance from the resulting bootstrap distribution.
+Because gene *identity* is resampled rather than reshuffled, a gene's own
+expression-derived weight is never artificially preserved across replicates the way
+it was under permutation -- closing the calibration gap without sacrificing power.
+
+### Directional (PTM-SEA) scoring gets an extra benefit
+
+PTM-SEA's directional gene sets (with `;u`/`;d`-labeled "up" and "down" members)
+benefit from bootstrap resampling in a second, independent way. Permutation always
+preserves the exact up/down membership counts of a gene set, only ever moving
+*where* they fall in the ranking. Bootstrap resampling with replacement lets some
+members drop out (and others duplicate) in any given replicate, so the up- and
+down-regulated counts genuinely vary from replicate to replicate -- a richer,
+two-sided source of resampling variability with no permutation-based analogue.
+
+A controlled simulation with known ground truth (embedding a real, moderate,
+correctly-oriented effect) confirmed this: both methods are well-calibrated under a
+true null, but bootstrap shows a real, statistically robust power advantage
+specifically for directional scoring (McNemar p = 0.0001, odds ratio 1.85) that
+does not replicate for non-directional scoring at the same sample size. The two
+worked examples below show both regimes on real data.
+
+## Example 1: ssGSEA on tumor NMF factors
+
+The bundled example is a PANOPLY LUAD (lung adenocarcinoma) NMF factorization
+(4 factors, CPTAC/ICPC v6.1) scored against the MSigDB HALLMARK collection --
+an ordinary (non-directional) ssGSEA analysis.
+
+```{r luad-score}
+luad.gct <- system.file("extdata", "LUAD_matrix_W_combined_signed_gc.gct", package = "ssGSEA3")
+hallmark.gmt <- system.file("extdata", "h.all.v7.0.symbols.gmt", package = "ssGSEA3")
+
+res <- ssGSEA3(
+  input.ds = luad.gct,
+  output.prefix = tempfile("luad"),
+  gene.set.databases = hallmark.gmt,
+  sample.norm.type = "rank", weight = 1, correl.type = "z.score",
+  statistic = "area.under.RES", min.overlap = 10,
+  nperm = 100, # reduced from the default 1000 for vignette build speed
+  seed = 42, verbose = FALSE, param.file = FALSE, log.file = NULL,
+  export.signat.gct = FALSE
+)
+
+res
+```
+
+The four factors are labeled by their NMF cluster number; renaming them to their
+published biological identities makes the heatmap self-explanatory:
+
+```{r luad-rename}
+cluster.names <- c(
+  "1" = "Unstable-proliferative", "2" = "Quiescent-EGFR",
+  "3" = "Immune-active-KRAS", "4" = "Stable-early-stage"
+)
+
+rename_cols <- function(x, map) {
+  colnames(x) <- unname(map[colnames(x)])
+  x
+}
+res$scores <- rename_cols(res$scores, cluster.names)
+res$pvalues <- rename_cols(res$pvalues, cluster.names)
+res$fdr <- rename_cols(res$fdr, cluster.names)
+res$sample.names <- unname(cluster.names[res$sample.names])
+```
+
+```{r luad-heatmap, fig.width = 8, fig.height = 10}
+ht <- plot_ssgsea_heatmap(res, top_n = 10, fdr.max = 0.05,
+                           title = "LUAD PANOPLY -- HALLMARK (ssGSEA3)")
+ComplexHeatmap::draw(ht)
+```
+
+The proliferation program (`MYC_TARGETS`, `E2F_TARGETS`, `MTORC1_SIGNALING`,
+`OXIDATIVE_PHOSPHORYLATION`, `GLYCOLYSIS`) is strongly and specifically enriched in
+the "Unstable-proliferative" factor, matching its published biological identity --
+a useful sanity check that the scoring and reporting pipeline agree with the
+underlying biology.
+
+### Comparison against the original ssGSEA2.0
+
+This dataset is scored at `weight = 1` -- exactly the regime affected by the
+weight-dependent calibration issue described above, so it demonstrates the
+*other* side of the bootstrap's benefit: rather than finding more real signal
+(as in the directional PTM-SEA example below), it trims down some of the
+original ssGSEA2.0's likely-inflated calls while retaining the large majority
+of them. As above, these are precomputed results (`nperm = 1000`, run outside
+this vignette):
+
+```{r luad-comparison}
+cmp.luad <- readRDS(system.file("extdata", "luad_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"))
+
+cat("Gene sets compared:", length(cmp.luad$gene.set.names), "\n")
+cat("NES Pearson r:    ", round(cor(as.vector(cmp.luad$ssgsea2.nes), as.vector(cmp.luad$ssgsea3.nes)), 3), "\n")
+cat("NES Spearman rho: ", round(cor(as.vector(cmp.luad$ssgsea2.nes), as.vector(cmp.luad$ssgsea3.nes), method = "spearman"), 3), "\n")
+
+sig2.luad <- cmp.luad$ssgsea2.fdr < 0.05
+sig3.luad <- cmp.luad$ssgsea3.fdr < 0.05
+cat("\nSignificant calls at FDR < 0.05:\n")
+cat("  ssGSEA2.0:", sum(sig2.luad), " ssGSEA3:", sum(sig3.luad),
+    " both:", sum(sig2.luad & sig3.luad), " ssGSEA2.0-only:", sum(sig2.luad & !sig3.luad),
+    " ssGSEA3-only:", sum(!sig2.luad & sig3.luad), "\n")
+```
+
+`ssGSEA3` agrees with `ssGSEA2.0` on the overwhelming majority of significant
+calls (`r sum(sig2.luad & sig3.luad)` shared), while dropping
+`r sum(sig2.luad & !sig3.luad)` calls unique to `ssGSEA2.0` and adding almost
+none of its own -- consistent with correcting a false-positive-prone regime
+rather than disagreeing with it.
+
+## Example 2: PTM-SEA on a PI3K-inhibitor perturbation dataset
+
+The second example (bundled in the package's `example/` directory, alongside
+its source) is a site-centric phosphoproteomics dataset (a PI3K perturbation
+time course, `PI3K_pert_logP_n2x23936.gct`) scored against PTMsigDB v2.0.0's
+flanking-sequence human signatures -- a directional PTM-SEA analysis. The call
+is the same shape as the ssGSEA example above:
+
+```{r ptmsea-score, eval = FALSE}
+res.ptmsea <- ssGSEA3(
+  input.ds = "example/PI3K_pert_logP_n2x23936.gct",
+  output.prefix = "pi3k",
+  gene.set.databases = "example/ptm.sig.db.all.flanking.human.v2.0.0.gmt",
+  sample.norm.type = "rank", weight = 0, correl.type = "rank",
+  statistic = "area.under.RES", min.overlap = 5, nperm = 1000, seed = 42
+)
+```
+
+### Comparison against the original ssGSEA2.0
+
+Unlike the LUAD comparison above, `weight = 0` is used here deliberately, to
+isolate the bootstrap-vs-permutation effect on directional scoring from the
+separate weight-dependent issue that comparison demonstrated. The results
+below use the default `nperm = 1000` (run outside this vignette, since a full
+comparison run against the original, unmodified `ssGSEA2.0` code takes
+several hours and depends on software not part of this package):
+
+```{r ptmsea-comparison}
+cmp <- readRDS(system.file("extdata", "pi3k_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"))
+
+cat("Gene sets compared:", length(cmp$gene.set.names), "\n")
+cat("NES Pearson r:    ", round(cor(as.vector(cmp$ssgsea2.nes), as.vector(cmp$ssgsea3.nes)), 3), "\n")
+cat("NES Spearman rho: ", round(cor(as.vector(cmp$ssgsea2.nes), as.vector(cmp$ssgsea3.nes), method = "spearman"), 3), "\n")
+cat("FDR Pearson r:    ", round(cor(as.vector(cmp$ssgsea2.fdr), as.vector(cmp$ssgsea3.fdr)), 3), "\n")
+cat("FDR Spearman rho: ", round(cor(as.vector(cmp$ssgsea2.fdr), as.vector(cmp$ssgsea3.fdr), method = "spearman"), 3), "\n")
+
+sig2 <- cmp$ssgsea2.fdr < 0.05
+sig3 <- cmp$ssgsea3.fdr < 0.05
+cat("\nSignificant calls at FDR < 0.05:\n")
+cat("  ssGSEA2.0:", sum(sig2), " ssGSEA3:", sum(sig3),
+    " both:", sum(sig2 & sig3), " ssGSEA2.0-only:", sum(sig2 & !sig3),
+    " ssGSEA3-only:", sum(!sig2 & sig3), "\n")
+```
+
+```{r ptmsea-scatter, fig.height = 5}
+plot(as.vector(cmp$ssgsea2.nes), as.vector(cmp$ssgsea3.nes),
+     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3 NES", pch = 16, col = "#00000066",
+     main = "PI3K perturbation, PTMsigDB v2.0.0: NES agreement")
+abline(0, 1, col = "firebrick", lty = 2)
+```
+
+`ssGSEA3` retains the large majority of `ssGSEA2.0`'s significant calls (`r sum(sig2 & sig3)`
+of `r sum(sig2)`) while finding substantially more overall (`r sum(sig3)` vs.
+`r sum(sig2)`) -- consistent with the confirmed power advantage for directional
+scoring described above, now demonstrated on a real, published dataset.
+
+## Session info
+
+```{r}
+sessionInfo()
+```

@@ -42,6 +42,9 @@ Suggests:
     org.Hs.eg.db,
     org.Mm.eg.db,
     org.Rn.eg.db,
-    org.Dr.eg.db
+    org.Dr.eg.db,
+    knitr,
+    rmarkdown
 Config/testthat/edition: 3
+VignetteBuilder: knitr
 LazyData: true
