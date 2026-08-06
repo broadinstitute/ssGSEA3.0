@@ -65,8 +65,7 @@ pooled p-values; otherwise per sample.}
 statistics as additional row annotations in the output GCTs.}
 
 \item{par}{If \code{TRUE}, score gene sets in parallel across
-\code{parallel::detectCores() - spare.cores} workers, for speed on large gene
-set databases. Independent of \code{seed}/reproducibility -- see \code{seed}.}
+\code{parallel::detectCores() - spare.cores} workers.}
 
 \item{spare.cores}{Number of CPU cores to leave idle when \code{par = TRUE}.}
 
@@ -77,14 +76,7 @@ original expression values.}
 \item{param.file}{If \code{TRUE}, write a \verb{<output.prefix>_parameters.txt}
 record of the parameters used.}
 
-\item{seed}{Optional random seed, for reproducible bootstrap resampling.
-Set this alone for a reproducible run regardless of \code{par}; \code{NULL} (the
-default) means results are not reproducible run-to-run either way.
-Under the hood, \code{par = TRUE} routes the same \code{seed} through
-\code{\link[parallel:RngStream]{parallel::clusterSetRNGStream()}} (L'Ecuyer) instead of a plain
-\code{\link[=set.seed]{set.seed()}}, since a plain \code{set.seed()} in the main process doesn't
-reach \code{par}'s parallel worker processes -- but this is purely an
-implementation detail, not something you need to set \code{par = TRUE} for.}
+\item{seed}{Optional random seed, for reproducible bootstrap resampling.}
 
 \item{verbose}{If \code{FALSE}, suppress progress messages (the log file, if
 \code{log.file} is not \code{NULL}, is still written).}

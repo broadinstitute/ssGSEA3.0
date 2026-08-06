@@ -1,8 +1,8 @@
 License
 
-ssGSEA2.0 is distributed under the following BSD-style license:
+ssGSEA3.0 (an update to ssGSEA2.0) is distributed under the following BSD-style license:
 
-Copyright © 2018 – 2020 The Broad Institute, Inc.  All rights reserved.
+Copyright © 2018 – 2026 The Broad Institute, Inc.  All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
@@ -16,4 +16,4 @@ THIS SOFTWARE IS PROVIDED “AS IS.”  THE COPYRIGHT HOLDERS MAKE NO EXPRESS OR
 
 If, by operation of law or otherwise, any of the aforementioned warranty disclaimers are determined inapplicable, your sole remedy, regardless of the form of action, including, but not limited to, negligence and strict liability, shall be replacement of the software with an updated version if one exists.
 
-Development of ssGSEA2.0 was supported by grant U24CA210979 from the National Cancer Institute Clinical Proteomic Tumor Analysis Consortium (CPTAC).  In addition, ssGSEA2.0 is distributed, in part, under and subject to the provisions of license(s) for: cmap / cmapR, © 2017 Connectivity Map (CMap) at the Broad Institute, Inc. (https://github.com/cmap/cmapR/blob/master/LICENSE, BSD 3-Clause License). All rights reserved.
+Development of ssGSEA2.0 and ssGSEA3.0 was supported by grant U24CA210979 from the National Cancer Institute Clinical Proteomic Tumor Analysis Consortium (CPTAC).  In addition, ssGSEA3.0 is distributed, in part, under and subject to the provisions of license(s) for: cmap / cmapR, © 2017 Connectivity Map (CMap) at the Broad Institute, Inc. (https://github.com/cmap/cmapR/blob/master/LICENSE, BSD 3-Clause License). All rights reserved.

@@ -12,9 +12,9 @@ calibration issue in the original approach without losing statistical power
 side-by-side comparison against the original `ssGSEA2.0` on real data.
 
 
-## Disclaimer
+## Official ssGSEA codebase
 
-The primary purpose of this repository is to supplement our [manuscript](https://www.mcponline.org/content/18/3/576.abstract) in which we describe PTM-SEA and [PTMsigDB](https://proteomics.broadapps.org/ptmsigdb/). While `ssGSEA3` presents an updated version of the original ssGSEA R implementation, we want to acknowledge that this is **not the primary repository for ssGSEA**. The official codebase for ssGSEA can be found [here](https://github.com/GSEA-MSigDB/ssGSEA-gpmodule), and the official GenePattern module to perform ssGSEA can be accessed [here](https://www.genepattern.org/modules/docs/ssGSEAProjection/4).
+`ssGSEA3` is an update to `ssGSEA2.0`, developed alongside our [manuscript](https://www.mcponline.org/content/18/3/576.abstract) describing PTM-SEA and [PTMsigDB](https://proteomics.broadapps.org/ptmsigdb/). It is **not the official repository for ssGSEA**. For the official ssGSEA codebase, see [here](https://github.com/GSEA-MSigDB/ssGSEA-gpmodule); for the official GenePattern module, see [here](https://www.genepattern.org/modules/docs/ssGSEAProjection/4).
 
 
 ## Installation
@@ -90,7 +90,8 @@ vignette):
 
 - **Ordinary ssGSEA**: a PANOPLY LUAD tumor NMF factorization
   (`LUAD_matrix_W_combined_signed_gc.gct`) against the MSigDB HALLMARK
-  collection (`db/msigdb/h.all.v7.0.symbols.gmt`).
+  collection (`db/msigdb/h.all.v7.0.symbols.gmt`); these results are shown in
+  Figure 1 of Satpathy et al. [8].
 - **PTM-SEA**: a site-centric phosphoproteomics PI3K-inhibitor perturbation
   dataset, based on Supplemental Table 6 in [1]
   (`PI3K_pert_logP_n2x23936.gct`), against PTMsigDB v2.0.0
@@ -106,14 +107,10 @@ These are not part of the installable `ssGSEA3` package itself. For
 command-line use, see ```ssgsea-cli.R --help``` and
 ```preprocess_gct-cli.R --help```.
 
-Also for use in R, Nicole Gay maintains a separate, [community-contributed R package](https://github.com/nicolerg/ssGSEA2.0) wrapping the original `ssGSEA2.0` implementation.
 
+## Changes from the original implementation
 
-## Misc
-
-### Changes from the original ssGSEA R-implementation
-
-Original code written by Pablo Tamayo. Adapted with additional modifications by D. R. Mani and Karsten Krug. Adaptions include:
+Original code written by Pablo Tamayo. Adapted with additional modifications by D. R. Mani, Karsten Krug, and Natalie Clark. Adaptions include:
 
 - support of multiple CPU cores (```doParallel``` R-package)
 - support of GCT v1.3 format using functions from [cmapR](https://github.com/cmap/cmapR)
@@ -149,6 +146,8 @@ License Agreement for MSigDB v6.0 and above can be found [here](https://raw.gith
 
 
 1. Reich, M., Liefeld, T., Gould, J., Lerner, J., Tamayo, P., & Mesirov, J. P. (2006). **GenePattern 2.0.** Nature Genetics, 38(5), 500-501. https://doi.org/10.1038/ng0506-500
+
+1. Satpathy, S., et al. (2025). **Integrative analysis of lung adenocarcinoma across diverse ethnicities and exposures.** Cancer Cell, 43(9), 1731-1757.e17. https://doi.org/10.1016/j.ccell.2025.07.011
 
 
 ***
