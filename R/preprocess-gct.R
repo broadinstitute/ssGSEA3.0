@@ -1,19 +1,31 @@
 #' Preprocess a GCT file for ssGSEA or PTM-SEA
 #'
-#' Converts a raw GCT file into one of three report levels used downstream by
-#' `ssGSEA3()` (not yet ported):
+#' Converts a raw GCT file into one of three report levels:
 #' \itemize{
-#'   \item `"gcr"` (gene-centric-redundant): relabels rows with gene symbols,
-#'     keeping every row (deduplicating names only).
 #'   \item `"gc"` (gene-centric): collapses multiple rows per gene into one,
-#'     per `mode`.
+#'     per `mode`. **This is the level [ssGSEA3()] expects** -- exactly one
+#'     row per gene, matching its assumption that each gene contributes a
+#'     single ranked value to the enrichment statistic.
 #'   \item `"ssc"` (single-site-centric): the PTM-SEA path. Explodes
 #'     multiply-modified peptides into one row per site and builds a
-#'     PTM-SEA-compatible site ID.
+#'     PTM-SEA-compatible site ID -- also one row per (site-level) scoring
+#'     unit, so also directly usable by [ssGSEA3()].
+#'   \item `"gcr"` (gene-centric-redundant): relabels rows with gene symbols
+#'     but does *not* collapse -- every original row is kept (deduplicating
+#'     names only, e.g. `GeneA`, `GeneA_1`). This is intended as an
+#'     inspection/reporting format (e.g. seeing every individual
+#'     peptide/probe measurement under its gene symbol before choosing how
+#'     to collapse it), **not** as [ssGSEA3()] input: feeding it multiple
+#'     rows for the same gene in would each count as an independent "hit" in
+#'     the enrichment ranking, giving genes with more rows disproportionate
+#'     influence on the score for reasons unrelated to real biology. Use
+#'     `"gc"` for ssGSEA scoring instead.
 #' }
 #'
 #' @param gct.str Path to the input GCT (v1.2/v1.3) file.
-#' @param level One of `"ssc"`, `"gc"`, `"gcr"` (see above).
+#' @param level One of `"ssc"`, `"gc"`, `"gcr"` (see above). Use `"gc"` or
+#'   `"ssc"` for data that will be scored with [ssGSEA3()]; `"gcr"` is not
+#'   recommended for that purpose (see above).
 #' @param id.type Input site-ID notation: `"sm"` (Spectrum Mill) or `"ph"`
 #'   (Philosopher). Only used when `level = "ssc"`.
 #' @param id.type.out Output site-ID type: `"uniprot"`, `"refseq"`, or
@@ -52,7 +64,9 @@
 #' @param mod.type Modification type, e.g. `"p"` or `"ac"`.
 #' @param appenddim See [cmapR::write_gct()].
 #'
-#' @return (Invisibly) the path to the written output GCT file.
+#' @return The processed [cmapR::GCT-class] object (so it can be passed
+#'   straight to [ssGSEA3()] without re-reading the file just written) --
+#'   the actual path written to disk is attached as `attr(result, "path")`.
 #' @export
 preprocessGCT <- function(gct.str,
                            level = c("ssc", "gc", "gcr"),
@@ -118,7 +132,15 @@ preprocessGCT <- function(gct.str,
   fn <- gsub("-$", "", fn)
 
   cmapR::write_gct(gct, ofile = fn, appenddim = appenddim)
-  invisible(fn)
+
+  if (appenddim) {
+    ## matches cmapR::write_gct()'s own (unexported) append_dim() logic --
+    ## the actual saved filename isn't just `fn`, it has dimensions appended
+    base <- sub("_n[0-9]+x[0-9]+\\.gct.*", "", basename(fn))
+    fn <- file.path(dirname(fn), sprintf("%s_n%dx%d.gct", base, ncol(gct@mat), nrow(gct@mat)))
+  }
+  attr(gct, "path") <- fn
+  gct
 }
 
 ## #####################################################################
@@ -140,10 +162,19 @@ preprocessGCT <- function(gct.str,
     warning(glue::glue("Removed {length(rm.idx)} rows due to missing gene symbol in column '{gene.col}'"))
   }
 
+  rid.gcr <- make.unique(genes, sep = "_")
+  rownames(mat) <- rownames(rdesc) <- rid.gcr
   gct@mat <- data.matrix(mat)
-  gct@rid <- make.unique(genes, sep = "_")
+  gct@rid <- rid.gcr
   gct@cid <- cid
   gct@rdesc <- rdesc
+  ## flags that rid was uniquified with a "_N" suffix, same as
+  ## read_gct_safe()'s own de-dup path -- so ssGSEA3(), if handed this object
+  ## directly, strips the suffix back off before gene set matching rather
+  ## than treating e.g. "GeneA_1" as an unrecognized gene. Defensive only:
+  ## "gcr" isn't the recommended level for ssGSEA3() input (see above), and
+  ## this attribute doesn't survive a write-to-GCT-then-reread round trip.
+  attr(gct, "deduped") <- TRUE
   gct
 }
 

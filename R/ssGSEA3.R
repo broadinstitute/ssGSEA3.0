@@ -48,7 +48,8 @@
 #' why this replaced the original permutation-based approach).
 #'
 #' @param input.ds Path to a GCT file (first column: gene symbols or site
-#'   ids).
+#'   ids), or an already-parsed [cmapR::GCT-class] object -- e.g. the result
+#'   of [preprocessGCT()], to avoid re-reading it from disk.
 #' @param output.prefix File prefix for output GCT files.
 #' @param gene.set.databases Character vector of paths to GMT gene set
 #'   database files.
@@ -138,9 +139,15 @@ ssGSEA3 <- function(input.ds,
   if (!is.null(log.file)) cat("##", format(Sys.time()), "\n", file = log.file)
 
   if (param.file) {
+    input.ds.str <- if (methods::is(input.ds, "GCT")) {
+      path <- attr(input.ds, "path")
+      if (!is.null(path)) path else if (nzchar(input.ds@src)) input.ds@src else "<in-memory GCT object>"
+    } else {
+      input.ds
+    }
     param.str <- c(
       paste("##", Sys.time()),
-      paste("input gct:", input.ds, sep = "\t"),
+      paste("input gct:", input.ds.str, sep = "\t"),
       paste("gene.set.database:", paste(gene.set.databases, collapse = ", "), sep = "\t"),
       paste("sample.norm.type:", sample.norm.type, sep = "\t"),
       paste("weight:", weight, sep = "\t"),

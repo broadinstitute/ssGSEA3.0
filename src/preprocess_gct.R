@@ -169,11 +169,14 @@ preprocessGCT <- function(
     }
     
     ## non-redundant gene symbols as rid
-    rid <- genes
+    rid <- make.unique(genes, sep = '_')
 
-    # GCT
+    # GCT -- keep @mat/@rdesc row dimnames in sync with the new gene-symbol
+    # rid (previously they kept the old, pre-relabeling ids, invisible since
+    # write.gct()/parse.gctx() re-labels rows from @rid regardless)
+    rownames(mat) <- rownames(rdesc) <- rid
     gct@mat <- data.matrix(mat)
-    gct@rid <- make.unique(rid, sep = '_')
+    gct@rid <- rid
     gct@cid <- cid
     gct@cdesc <- cdesc
     gct@rdesc <- rdesc

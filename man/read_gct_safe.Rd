@@ -7,7 +7,10 @@
 read_gct_safe(gct.str)
 }
 \arguments{
-\item{gct.str}{Path to a GCT (v1.2/v1.3) file.}
+\item{gct.str}{Path to a GCT (v1.2/v1.3) file, or an already-parsed
+\link[cmapR:GCT-class]{cmapR::GCT} object (e.g. as returned by \code{\link[=preprocessGCT]{preprocessGCT()}}) --
+returned as-is, skipping all parsing/deduplication below, since such an
+object is already well-formed by construction.}
 }
 \value{
 A \link[cmapR:GCT-class]{cmapR::GCT} object.

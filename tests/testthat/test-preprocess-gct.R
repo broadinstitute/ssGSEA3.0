@@ -20,11 +20,16 @@ test_that("gcr keeps every row and relabels by gene symbol", {
   rdesc <- data.frame(geneSymbol = c("GeneA", "GeneA", "GeneB"), row.names = c("p1", "p2", "p3"))
   f <- make_gct_file(mat, c("p1", "p2", "p3"), c("S1", "S2"), rdesc)
 
-  out.f <- preprocessGCT(f, level = "gcr", gene.col = "geneSymbol", appenddim = FALSE)
-  out <- cmapR::parse_gctx(out.f)
+  out <- preprocessGCT(f, level = "gcr", gene.col = "geneSymbol", appenddim = FALSE)
 
   expect_equal(nrow(out@mat), 3)
   expect_equal(sort(out@rid), sort(c("GeneA", "GeneA_1", "GeneB")))
+  ## @mat's own row dimnames must stay in sync with @rid -- previously they
+  ## didn't (mat kept the original pre-relabeling ids), invisible before
+  ## since write_gct()/parse_gctx() re-labels rows from @rid regardless
+  expect_equal(rownames(out@mat), out@rid)
+  expect_equal(rownames(out@rdesc), out@rid)
+  expect_true(file.exists(attr(out, "path")))
 })
 
 ## #####################################################################
@@ -38,14 +43,12 @@ test_that("gc mean/median/abs.max collapse multiple rows per gene", {
   rdesc <- data.frame(geneSymbol = c("GeneA", "GeneA", "GeneB", "GeneB"), row.names = rownames(mat))
   f <- make_gct_file(mat, rownames(mat), colnames(mat), rdesc)
 
-  out.f <- preprocessGCT(f, level = "gc", mode = "mean", gene.col = "geneSymbol", appenddim = FALSE)
-  out <- cmapR::parse_gctx(out.f)
+  out <- preprocessGCT(f, level = "gc", mode = "mean", gene.col = "geneSymbol", appenddim = FALSE)
   expect_equal(nrow(out@mat), 2)
   expect_equal(unname(out@mat["GeneA", "S1"]), mean(c(1, 3)))
   expect_equal(unname(out@mat["GeneB", "S2"]), mean(c(5, 100)))
 
-  out.f2 <- preprocessGCT(f, level = "gc", mode = "abs.max", gene.col = "geneSymbol", appenddim = FALSE)
-  out2 <- cmapR::parse_gctx(out.f2)
+  out2 <- preprocessGCT(f, level = "gc", mode = "abs.max", gene.col = "geneSymbol", appenddim = FALSE)
   expect_equal(unname(out2@mat["GeneB", "S2"]), 100) ## |100| > |5|
 })
 
@@ -63,8 +66,7 @@ test_that("gc mode='sd' keeps the most cross-sample-variable probe per gene (pre
   rdesc <- data.frame(geneSymbol = c("GeneA", "GeneA", "GeneB", "GeneB"), row.names = rownames(mat))
   f <- make_gct_file(mat, rownames(mat), colnames(mat), rdesc)
 
-  out.f <- preprocessGCT(f, level = "gc", mode = "sd", gene.col = "geneSymbol", appenddim = FALSE)
-  out <- cmapR::parse_gctx(out.f)
+  out <- preprocessGCT(f, level = "gc", mode = "sd", gene.col = "geneSymbol", appenddim = FALSE)
 
   expect_equal(nrow(out@mat), 2)
   expect_equal(unname(out@mat["GeneA", ]), c(1, 50, 100)) ## pA2 kept, not pA1
@@ -82,8 +84,7 @@ test_that("gc mode='SGT' keeps the lowest subgroup per gene", {
   )
   f <- make_gct_file(mat, rownames(mat), colnames(mat), rdesc)
 
-  out.f <- preprocessGCT(f, level = "gc", mode = "SGT", gene.col = "geneSymbol", SGT.col = "subgroupNum", appenddim = FALSE)
-  out <- cmapR::parse_gctx(out.f)
+  out <- preprocessGCT(f, level = "gc", mode = "SGT", gene.col = "geneSymbol", SGT.col = "subgroupNum", appenddim = FALSE)
 
   expect_equal(unname(out@mat["GeneA", "S1"]), mat["p2", "S1"])
 })
@@ -105,15 +106,51 @@ test_that("ssc/seqwin explodes multi-site peptides and averages duplicate site d
   )
   f <- make_gct_file(mat, rownames(mat), colnames(mat), rdesc)
 
-  out.f <- preprocessGCT(f, level = "ssc", id.type = "sm", id.type.out = "seqwin",
-                          seqwin.col = "VMsiteFlanks", mod.type = "p", mode = "mean", appenddim = FALSE)
-  out <- cmapR::parse_gctx(out.f)
+  out <- preprocessGCT(f, level = "ssc", id.type = "sm", id.type.out = "seqwin",
+                        seqwin.col = "VMsiteFlanks", mod.type = "p", mode = "mean", appenddim = FALSE)
 
   expect_setequal(out@rid, c("SITEAAAA-p", "SITEBBBB-p", "SITECCCC-p", "SITEDDDD-p"))
   expect_equal(unname(out@mat["SITEBBBB-p", ]), c(1, 2))         ## PEP1, with SITEAAAA excluded
   expect_equal(unname(out@mat["SITEAAAA-p", ]), c(10, 20))       ## PEP2 alone
   expect_equal(unname(out@mat["SITECCCC-p", ]), c(mean(c(100, 200)), mean(c(110, 220)))) ## PEP3 + PEP4 averaged
   expect_equal(unname(out@mat["SITEDDDD-p", ]), c(1000, 1010))  ## PEP5 alone, no duplication
+})
+
+## #####################################################################
+##          return value: GCT object + attr(., "path") contract
+## #####################################################################
+test_that("preprocessGCT returns the processed GCT object with a working attr(., \"path\")", {
+  mat <- matrix(1:6, nrow = 3, ncol = 2)
+  rdesc <- data.frame(geneSymbol = c("GeneA", "GeneA", "GeneB"), row.names = c("p1", "p2", "p3"))
+  f <- make_gct_file(mat, c("p1", "p2", "p3"), c("S1", "S2"), rdesc)
+
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
+  out <- preprocessGCT(f, level = "gcr", gene.col = "geneSymbol", appenddim = FALSE)
+  expect_s4_class(out, "GCT")
+  expect_true(file.exists(attr(out, "path")))
+  ## the object returned in-memory should match what actually landed on disk
+  reread <- cmapR::parse_gctx(attr(out, "path"))
+  expect_equal(sort(out@rid), sort(reread@rid))
+  expect_equal(out@mat[order(out@rid), ], reread@mat[order(reread@rid), ])
+})
+
+test_that("preprocessGCT's attr(., \"path\") accounts for appenddim=TRUE's appended dimensions", {
+  mat <- matrix(1:6, nrow = 3, ncol = 2)
+  rdesc <- data.frame(geneSymbol = c("GeneA", "GeneA", "GeneB"), row.names = c("p1", "p2", "p3"))
+  f <- make_gct_file(mat, c("p1", "p2", "p3"), c("S1", "S2"), rdesc)
+
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
+  out <- preprocessGCT(f, level = "gcr", gene.col = "geneSymbol", appenddim = TRUE)
+  expect_true(grepl("_n[0-9]+x[0-9]+\\.gct$", attr(out, "path")))
+  expect_true(file.exists(attr(out, "path")))
 })
 
 ## #####################################################################

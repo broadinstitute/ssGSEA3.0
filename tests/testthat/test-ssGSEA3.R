@@ -128,3 +128,94 @@ test_that("ssGSEA3: a directional gene set unscoreable in every sample (lone-mem
   expect_true(any(grepl("^GS_OK", list.files("signature_gct"))))
   expect_false(any(grepl("^GS_BAD", list.files("signature_gct"))))
 })
+
+test_that("ssGSEA3: accepts a GCT object directly (e.g. from preprocessGCT()), matching the file-path route exactly", {
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
+  ## raw, multi-probe-per-gene input requiring gc-level collapsing
+  mat <- matrix(c(20:1, rnorm(20, 10, 3)), ncol = 2, dimnames = list(paste0("p", 1:20), c("S1", "S2")))
+  rdesc <- data.frame(geneSymbol = paste0("G", rep(1:10, each = 2)), row.names = rownames(mat))
+  raw.gct <- cmapR::GCT()
+  raw.gct@mat <- mat
+  raw.gct@rid <- rownames(mat)
+  raw.gct@cid <- colnames(mat)
+  raw.gct@rdesc <- rdesc
+  raw.gct@cdesc <- data.frame(row.names = colnames(mat))
+  raw.path <- "raw_input.gct"
+  cmapR::write_gct(raw.gct, ofile = raw.path, appenddim = FALSE)
+
+  gmt.path <- make_test_gmt(list(GS_A = paste0("G", 1:5)), "sets.gmt")
+
+  processed <- preprocessGCT(raw.path, level = "gc", mode = "mean", gene.col = "geneSymbol", appenddim = FALSE)
+  expect_s4_class(processed, "GCT")
+
+  ## route 1: pass the in-memory GCT object straight through, no re-read
+  res.obj <- ssGSEA3(processed, output.prefix = "run_obj", gene.set.databases = gmt.path,
+                      sample.norm.type = "rank", weight = 0, min.overlap = 3, nperm = 20,
+                      seed = 42, verbose = FALSE, param.file = FALSE, log.file = NULL,
+                      export.signat.gct = FALSE)
+
+  ## route 2: the traditional file-path route, using the path preprocessGCT() itself wrote
+  res.path <- ssGSEA3(attr(processed, "path"), output.prefix = "run_path", gene.set.databases = gmt.path,
+                       sample.norm.type = "rank", weight = 0, min.overlap = 3, nperm = 20,
+                       seed = 42, verbose = FALSE, param.file = FALSE, log.file = NULL,
+                       export.signat.gct = FALSE)
+
+  expect_identical(res.obj$scores, res.path$scores)
+  expect_identical(res.obj$pvalues, res.path$pvalues)
+  expect_equal(unname(res.obj$gs.names), "GS_A")
+})
+
+test_that("ssGSEA3: gcr-mode passthrough recognizes redundant genes via the 'deduped' attribute, not discards them", {
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
+  ## GeneA appears twice (-> relabeled "GeneA"/"GeneA_1" by gcr) at ranks 5-6
+  ## of 10; with area.under.RES + weight=0, whether both ranks count as GS_A
+  ## hits (vs only the first, un-stripped "GeneA") changes the score --
+  ## unlike a boundary/edge-rank placement, this configuration discriminates
+  ## the two cases (verified empirically) and so proves the attribute, not
+  ## just the labeling, is what makes ssGSEA3() recognize "GeneA_1" as GeneA
+  mat <- matrix(10:1, ncol = 1, dimnames = list(paste0("p", 1:10), "S1"))
+  rdesc <- data.frame(
+    geneSymbol = c("G1", "G2", "G3", "G4", "GeneA", "GeneA", "G7", "G8", "G9", "G10"),
+    row.names = rownames(mat)
+  )
+  raw.gct <- cmapR::GCT()
+  raw.gct@mat <- mat
+  raw.gct@rid <- rownames(mat)
+  raw.gct@cid <- "S1"
+  raw.gct@rdesc <- rdesc
+  raw.gct@cdesc <- data.frame(row.names = "S1")
+  raw.path <- "raw_input.gct"
+  cmapR::write_gct(raw.gct, ofile = raw.path, appenddim = FALSE)
+
+  gmt.path <- make_test_gmt(list(GS_A = "GeneA"), "sets.gmt")
+
+  processed <- preprocessGCT(raw.path, level = "gcr", gene.col = "geneSymbol", appenddim = FALSE)
+  expect_true(isTRUE(attr(processed, "deduped")))
+  expect_true(all(c("GeneA", "GeneA_1") %in% processed@rid))
+
+  res.fixed <- ssGSEA3(processed, output.prefix = "run_fixed", gene.set.databases = gmt.path,
+                        sample.norm.type = "rank", weight = 0, min.overlap = 1,
+                        output.score.type = "ES", verbose = FALSE, param.file = FALSE,
+                        log.file = NULL, export.signat.gct = FALSE)
+
+  ## simulate the pre-fix bug: strip the attribute so ssGSEA3() treats
+  ## "GeneA_1" as an unrecognized gene, same as read_gct_safe()'s happy path
+  ## on a file whose rids were already (redundantly) unique
+  broken <- processed
+  attr(broken, "deduped") <- NULL
+  res.broken <- ssGSEA3(broken, output.prefix = "run_broken", gene.set.databases = gmt.path,
+                         sample.norm.type = "rank", weight = 0, min.overlap = 1,
+                         output.score.type = "ES", verbose = FALSE, param.file = FALSE,
+                         log.file = NULL, export.signat.gct = FALSE)
+
+  expect_equal(unname(res.fixed$scores["GS_A", "S1"]), 0)
+  expect_equal(unname(res.broken$scores["GS_A", "S1"]), 5 / 9)
+})

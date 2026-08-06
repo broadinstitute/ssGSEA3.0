@@ -28,7 +28,9 @@ preprocessGCT(
 \arguments{
 \item{gct.str}{Path to the input GCT (v1.2/v1.3) file.}
 
-\item{level}{One of \code{"ssc"}, \code{"gc"}, \code{"gcr"} (see above).}
+\item{level}{One of \code{"ssc"}, \code{"gc"}, \code{"gcr"} (see above). Use \code{"gc"} or
+\code{"ssc"} for data that will be scored with \code{\link[=ssGSEA3]{ssGSEA3()}}; \code{"gcr"} is not
+recommended for that purpose (see above).}
 
 \item{id.type}{Input site-ID notation: \code{"sm"} (Spectrum Mill) or \code{"ph"}
 (Philosopher). Only used when \code{level = "ssc"}.}
@@ -84,18 +86,30 @@ signed, log-transformed p-values).}
 \item{appenddim}{See \code{\link[cmapR:write_gct]{cmapR::write_gct()}}.}
 }
 \value{
-(Invisibly) the path to the written output GCT file.
+The processed \link[cmapR:GCT-class]{cmapR::GCT} object (so it can be passed
+straight to \code{\link[=ssGSEA3]{ssGSEA3()}} without re-reading the file just written) --
+the actual path written to disk is attached as \code{attr(result, "path")}.
 }
 \description{
-Converts a raw GCT file into one of three report levels used downstream by
-\code{ssGSEA3()} (not yet ported):
+Converts a raw GCT file into one of three report levels:
 \itemize{
-\item \code{"gcr"} (gene-centric-redundant): relabels rows with gene symbols,
-keeping every row (deduplicating names only).
 \item \code{"gc"} (gene-centric): collapses multiple rows per gene into one,
-per \code{mode}.
+per \code{mode}. \strong{This is the level \code{\link[=ssGSEA3]{ssGSEA3()}} expects} -- exactly one
+row per gene, matching its assumption that each gene contributes a
+single ranked value to the enrichment statistic.
 \item \code{"ssc"} (single-site-centric): the PTM-SEA path. Explodes
 multiply-modified peptides into one row per site and builds a
-PTM-SEA-compatible site ID.
+PTM-SEA-compatible site ID -- also one row per (site-level) scoring
+unit, so also directly usable by \code{\link[=ssGSEA3]{ssGSEA3()}}.
+\item \code{"gcr"} (gene-centric-redundant): relabels rows with gene symbols
+but does \emph{not} collapse -- every original row is kept (deduplicating
+names only, e.g. \code{GeneA}, \code{GeneA_1}). This is intended as an
+inspection/reporting format (e.g. seeing every individual
+peptide/probe measurement under its gene symbol before choosing how
+to collapse it), \strong{not} as \code{\link[=ssGSEA3]{ssGSEA3()}} input: feeding it multiple
+rows for the same gene in would each count as an independent "hit" in
+the enrichment ranking, giving genes with more rows disproportionate
+influence on the score for reasons unrelated to real biology. Use
+\code{"gc"} for ssGSEA scoring instead.
 }
 }

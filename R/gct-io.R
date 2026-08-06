@@ -65,10 +65,14 @@
 #' case by hand. The non-unique-`rid` fallback used to be duplicated between
 #' the preprocessing and enrichment code paths; it now lives here once.
 #'
-#' @param gct.str Path to a GCT (v1.2/v1.3) file.
+#' @param gct.str Path to a GCT (v1.2/v1.3) file, or an already-parsed
+#'   [cmapR::GCT-class] object (e.g. as returned by [preprocessGCT()]) --
+#'   returned as-is, skipping all parsing/deduplication below, since such an
+#'   object is already well-formed by construction.
 #' @return A [cmapR::GCT-class] object.
 #' @keywords internal
 read_gct_safe <- function(gct.str) {
+  if (methods::is(gct.str, "GCT")) return(gct.str)
   if (!file.exists(gct.str)) stop(glue::glue("File '{gct.str}' not found!"))
 
   gct <- try(cmapR::parse_gctx(gct.str), silent = TRUE)

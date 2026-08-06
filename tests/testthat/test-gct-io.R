@@ -12,6 +12,18 @@ test_that("read_gct_safe: flags 'deduped' when rids were made unique, not otherw
   expect_equal(dup@rid, c("G1", "G1_1"))
 })
 
+test_that("read_gct_safe: an already-parsed GCT object is returned as-is, no file access attempted", {
+  g <- cmapR::GCT()
+  g@mat <- matrix(1:4, nrow = 2, dimnames = list(c("G1", "G2"), c("S1", "S2")))
+  g@rid <- c("G1", "G2")
+  g@cid <- c("S1", "S2")
+  g@rdesc <- data.frame(row.names = c("G1", "G2"))
+  g@cdesc <- data.frame(row.names = c("S1", "S2"))
+
+  result <- read_gct_safe(g)
+  expect_identical(result, g)
+})
+
 test_that("read_gct_safe: parses a single-data-row, multi-rdesc-column GCT (cmapR parse_gctx bug workaround)", {
   wd <- withr::local_tempdir()
   f <- file.path(wd, "single.gct")

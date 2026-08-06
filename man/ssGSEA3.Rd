@@ -28,7 +28,8 @@ ssGSEA3(
 }
 \arguments{
 \item{input.ds}{Path to a GCT file (first column: gene symbols or site
-ids).}
+ids), or an already-parsed \link[cmapR:GCT-class]{cmapR::GCT} object -- e.g. the result
+of \code{\link[=preprocessGCT]{preprocessGCT()}}, to avoid re-reading it from disk.}
 
 \item{output.prefix}{File prefix for output GCT files.}
 
