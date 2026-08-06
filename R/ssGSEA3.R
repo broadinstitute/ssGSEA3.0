@@ -73,7 +73,8 @@
 #' @param extended.output If `TRUE`, include per-signature overlap
 #'   statistics as additional row annotations in the output GCTs.
 #' @param par If `TRUE`, score gene sets in parallel across
-#'   `parallel::detectCores() - spare.cores` workers.
+#'   `parallel::detectCores() - spare.cores` workers, for speed on large gene
+#'   set databases. Independent of `seed`/reproducibility -- see `seed`.
 #' @param spare.cores Number of CPU cores to leave idle when `par = TRUE`.
 #' @param export.signat.gct If `TRUE`, also write one GCT per signature (to a
 #'   `signature_gct/` subdirectory) containing that signature's members'
@@ -81,9 +82,13 @@
 #' @param param.file If `TRUE`, write a `<output.prefix>_parameters.txt`
 #'   record of the parameters used.
 #' @param seed Optional random seed, for reproducible bootstrap resampling.
-#'   With `par = TRUE`, this seeds an [parallel::clusterSetRNGStream()]
-#'   (L'Ecuyer) stream rather than a plain [set.seed()], since parallel
-#'   workers otherwise have independent, non-reproducible RNG streams.
+#'   Set this alone for a reproducible run regardless of `par`; `NULL` (the
+#'   default) means results are not reproducible run-to-run either way.
+#'   Under the hood, `par = TRUE` routes the same `seed` through
+#'   [parallel::clusterSetRNGStream()] (L'Ecuyer) instead of a plain
+#'   [set.seed()], since a plain `set.seed()` in the main process doesn't
+#'   reach `par`'s parallel worker processes -- but this is purely an
+#'   implementation detail, not something you need to set `par = TRUE` for.
 #' @param verbose If `FALSE`, suppress progress messages (the log file, if
 #'   `log.file` is not `NULL`, is still written).
 #' @param log.file Path to a log file recording basic progress/timing;

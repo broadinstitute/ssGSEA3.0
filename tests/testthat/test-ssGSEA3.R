@@ -219,3 +219,48 @@ test_that("ssGSEA3: gcr-mode passthrough recognizes redundant genes via the 'ded
   expect_equal(unname(res.fixed$scores["GS_A", "S1"]), 0)
   expect_equal(unname(res.broken$scores["GS_A", "S1"]), 5 / 9)
 })
+
+test_that("ssGSEA3: seed reproducibility holds under par=TRUE too, and is not tied to par at all", {
+  skip_on_cran() ## spins up a parallel::makeCluster() worker process
+  ## par=TRUE workers are separate R processes that resolve internal
+  ## functions (e.g. project_geneset()) by loading the "ssGSEA3" namespace
+  ## by name -- this only works if the package is actually installed
+  ## (R CMD INSTALL), not merely source-loaded via devtools::load_all()/
+  ## pkgload, which registers no installed package for a fresh process to
+  ## find. R CMD check always installs first, so this isn't an issue there.
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
+  set.seed(7)
+  genes <- paste0("G", 1:30)
+  mat <- matrix(rnorm(60, 20, 5), ncol = 2, dimnames = list(genes, c("S1", "S2")))
+  gct.path <- make_test_gct(mat, "input.gct")
+  gmt.path <- make_test_gmt(list(GS_A = genes[1:10]), "sets.gmt")
+
+  run <- function(par, seed) {
+    ssGSEA3(gct.path, output.prefix = tempfile(), gene.set.databases = gmt.path,
+            sample.norm.type = "rank", weight = 0, min.overlap = 3, nperm = 50,
+            seed = seed, par = par, spare.cores = 1, verbose = FALSE,
+            param.file = FALSE, log.file = NULL, export.signat.gct = FALSE)
+  }
+
+  ## par=TRUE with a seed is just as reproducible as the serial (par=FALSE)
+  ## case already covered above -- par only changes *how* the seed is
+  ## applied (clusterSetRNGStream vs plain set.seed), not *whether* seeding
+  ## works; see the misleading @param seed doc this test guards against
+  par.a <- run(par = TRUE, seed = 42)
+  par.b <- run(par = TRUE, seed = 42)
+  expect_identical(par.a$pvalues, par.b$pvalues)
+
+  ## without a seed, neither mode is reproducible -- confirms the two
+  ## reproducible cases above aren't reproducible merely by coincidence
+  serial.noseed.a <- run(par = FALSE, seed = NULL)
+  serial.noseed.b <- run(par = FALSE, seed = NULL)
+  expect_false(isTRUE(all.equal(serial.noseed.a$pvalues, serial.noseed.b$pvalues)))
+
+  par.noseed.a <- run(par = TRUE, seed = NULL)
+  par.noseed.b <- run(par = TRUE, seed = NULL)
+  expect_false(isTRUE(all.equal(par.noseed.a$pvalues, par.noseed.b$pvalues)))
+})
