@@ -54,11 +54,16 @@ to 3/14 at 24 hours. Fixing the false-positive problem this way also suppressed 
 signal -- a fundamental validity-vs-power tension that a purely permutation-based
 approach could not resolve.
 
-`ssGSEA3` sidesteps this entirely by resampling genes (not gene labels) with
-replacement and deriving significance from the resulting bootstrap distribution.
-Because gene *identity* is resampled rather than reshuffled, a gene's own
-expression-derived weight is never artificially preserved across replicates the way
-it was under permutation -- closing the calibration gap without sacrificing power.
+`ssGSEA3` circumvents the need for this tradeoff by using bootstrap sampling. In a
+traditional permutation test, random permutations of the data are used to derive the
+null distribution, and the p-value is calculated based on how extreme the observed
+value is compared to the null distribution. Here, we use bootstrap sampling to
+determine the standard deviation of the observed value, and the p-value is determined
+akin to a z-test on the observed value (using the bootstrap-derived standard
+deviation). The effective null distribution is the mean shifted bootstrap values. With
+this approach, all gene-gene relationships and dependencies are maintained, with the
+bootstrap providing a perturbation of the enrichment score, thereby minimizing bias and
+controlling false positives.
 
 ### Directional (PTM-SEA) scoring gets an extra benefit
 
