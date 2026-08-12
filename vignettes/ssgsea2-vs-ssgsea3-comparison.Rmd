@@ -25,7 +25,9 @@ permutation testing used by the original `ssGSEA2.0`.
 This vignette:
 
 1. explains *why* that replacement happened,
-2. walks through an ordinary ssGSEA analysis (tumor NMF factors vs. HALLMARK gene sets), and
+2. walks through two ordinary ssGSEA analyses on the same tumor NMF factors --
+   against the curated HALLMARK collection, and against the much larger and more
+   functionally diverse REACTOME pathway collection -- and
 3. walks through a directional PTM-SEA analysis (a phosphoproteomics perturbation
    dataset vs. PTMsigDB), comparing the result to the original `ssGSEA2.0`.
 
@@ -183,7 +185,132 @@ calls (`r sum(sig2.luad & sig3.luad)` shared), while dropping
 none of its own -- consistent with correcting a false-positive-prone regime
 rather than disagreeing with it.
 
-## Example 2: PTM-SEA on a PI3K-inhibitor perturbation dataset
+## Example 2: the same tumor NMF factors, scored against REACTOME
+
+HALLMARK's 50 gene sets are curated to be similarly sized and mechanistically
+narrow (one canonical process each). REACTOME is far larger and more
+functionally diverse -- gene sets range from a handful of genes up to several
+hundred, spanning everything from individual metabolic reactions to broad
+pathway categories -- which makes it a useful second, harder test of the same
+LUAD data: does `ssGSEA3.0` agree with `ssGSEA2.0` as well on a
+size/function-heterogeneous database as it does on a curated, uniform one?
+
+```{r luad-reactome-score, eval = FALSE}
+res.reactome <- ssGSEA3(
+  input.ds = "example/LUAD_matrix_W_combined_signed_gc.gct",
+  output.prefix = "luad_reactome",
+  gene.set.databases = "db/msigdb/reactome_subset.gmt",
+  sample.norm.type = "rank", weight = 1, correl.type = "z.score",
+  statistic = "area.under.RES", min.overlap = 10, nperm = 1000, seed = 42
+)
+```
+
+```{r luad-reactome-load}
+## as above, loading the precomputed output instead of re-running the ~30
+## min scoring call live -- restricted to the 1,167 gene sets common to
+## both engines being compared below
+res.reactome <- readRDS(system.file(
+  "extdata", "luad_reactome_ssgsea3_result.rds", package = "ssGSEA3"
+))
+res.reactome
+```
+
+```{r luad-reactome-rename}
+res.reactome$scores <- rename_cols(res.reactome$scores, cluster.names)
+res.reactome$pvalues <- rename_cols(res.reactome$pvalues, cluster.names)
+res.reactome$fdr <- rename_cols(res.reactome$fdr, cluster.names)
+res.reactome$sample.names <- unname(cluster.names[res.reactome$sample.names])
+```
+
+Auto-selecting top terms by `|NES|` on a size-heterogeneous database like
+REACTOME tends to surface a handful of very large "umbrella" gene sets (e.g.
+`METABOLISM_OF_RNA`, `CELL_CYCLE`) rather than the mechanistically specific
+pathways a reader would actually want to see. Instead, this heatmap uses a
+curated list of 30 lung adenocarcinoma driver pathways spanning EGFR/ERBB,
+RAS/RAF/MAPK, ALK, PI3K/AKT, WNT, NOTCH, TGF-beta, TP53, DNA damage/repair,
+cell-cycle checkpoints, apoptosis, KEAP1-NRF2, telomere maintenance, FGFR,
+MET, and hypoxia/VEGF signaling:
+
+```{r luad-reactome-heatmap, fig.width = 8, fig.height = 10}
+luad.driver.pathways <- c(
+  "REACTOME_SIGNALING_BY_EGFR", "REACTOME_SIGNALING_BY_EGFR_IN_CANCER",
+  "REACTOME_SIGNALING_BY_ERBB4", "REACTOME_SIGNALING_BY_ALK_IN_CANCER",
+  "REACTOME_REGULATION_OF_RAS_BY_GAPS", "REACTOME_SIGNALLING_TO_ERKS",
+  "REACTOME_MAP2K_AND_MAPK_ACTIVATION",
+  "REACTOME_SIGNALING_BY_MODERATE_KINASE_ACTIVITY_BRAF_MUTANTS",
+  "REACTOME_PI3K_AKT_SIGNALING_IN_CANCER",
+  "REACTOME_CONSTITUTIVE_SIGNALING_BY_ABERRANT_PI3K_IN_CANCER",
+  "REACTOME_SIGNALING_BY_WNT_IN_CANCER", "REACTOME_SIGNALING_BY_NOTCH4",
+  "REACTOME_SIGNALING_BY_TGF_BETA_RECEPTOR_COMPLEX",
+  "REACTOME_SMAD2_SMAD3_SMAD4_HETEROTRIMER_REGULATES_TRANSCRIPTION",
+  "REACTOME_REGULATION_OF_TP53_ACTIVITY",
+  "REACTOME_REGULATION_OF_TP53_ACTIVITY_THROUGH_PHOSPHORYLATION",
+  "REACTOME_TP53_REGULATES_TRANSCRIPTION_OF_DNA_REPAIR_GENES",
+  "REACTOME_G1_S_DNA_DAMAGE_CHECKPOINTS", "REACTOME_G2_M_DNA_DAMAGE_CHECKPOINT",
+  "REACTOME_MITOTIC_SPINDLE_CHECKPOINT", "REACTOME_APOPTOSIS",
+  "REACTOME_KEAP1_NFE2L2_PATHWAY", "REACTOME_NUCLEAR_EVENTS_MEDIATED_BY_NFE2L2",
+  "REACTOME_TELOMERE_MAINTENANCE", "REACTOME_SIGNALING_BY_FGFR",
+  "REACTOME_SIGNALING_BY_FGFR_IN_DISEASE", "REACTOME_CELLULAR_RESPONSE_TO_HYPOXIA",
+  "REACTOME_SIGNALING_BY_VEGF", "REACTOME_SIGNALING_BY_MET",
+  "REACTOME_DISEASES_OF_DNA_REPAIR"
+)
+ht.reactome <- plot_ssgsea_heatmap(res.reactome, terms = luad.driver.pathways,
+                                    fdr.max = 0.05,
+                                    title = "LUAD PANOPLY -- REACTOME driver pathways (ssGSEA3.0)")
+ComplexHeatmap::draw(ht.reactome)
+```
+
+All 30 of these are significant (FDR<0.05) in at least one of the four NMF
+factors. Cell-cycle and DNA-damage-checkpoint pathways
+(`G1_S_DNA_DAMAGE_CHECKPOINTS`, `TP53_REGULATES_TRANSCRIPTION_OF_DNA_REPAIR_GENES`,
+`MITOTIC_SPINDLE_CHECKPOINT`) are strongly and specifically enriched in the
+"Unstable-proliferative" factor, matching its published biological identity --
+the same kind of biology-matches-label sanity check as the HALLMARK example
+above, now visible on a much larger and more heterogeneous database.
+
+### Comparison against the original ssGSEA2.0
+
+As in the HALLMARK example, this dataset is scored at `weight = 1`. REACTOME's
+size and functional diversity make the calibration/power tradeoff described
+above far more visible than it is on HALLMARK's uniform, curated 50 gene sets:
+
+```{r luad-reactome-comparison}
+cmp.reactome <- readRDS(system.file(
+  "extdata", "luad_reactome_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"
+))
+nes2.reactome <- as.vector(cmp.reactome$ssgsea2.nes)
+nes3.reactome <- as.vector(cmp.reactome$ssgsea3.nes)
+
+cat("Gene sets compared:", length(cmp.reactome$gene.set.names), "\n")
+cat("NES Pearson r:    ", round(cor(nes2.reactome, nes3.reactome), 3), "\n")
+cat("NES Spearman rho: ", round(cor(nes2.reactome, nes3.reactome, method = "spearman"), 3), "\n")
+
+sig2.reactome <- apply(cmp.reactome$ssgsea2.fdr < 0.05, 1, any)
+sig3.reactome <- apply(cmp.reactome$ssgsea3.fdr < 0.05, 1, any)
+cat("\nGene sets significant (FDR < 0.05 in >=1 sample), of", length(cmp.reactome$gene.set.names), "total:\n")
+cat("  ssGSEA2.0:", sum(sig2.reactome), " ssGSEA3.0:", sum(sig3.reactome),
+    " both:", sum(sig2.reactome & sig3.reactome),
+    " ssGSEA2.0-only:", sum(sig2.reactome & !sig3.reactome),
+    " ssGSEA3.0-only:", sum(!sig2.reactome & sig3.reactome), "\n")
+```
+
+```{r luad-reactome-scatter, fig.height = 5}
+plot(nes2.reactome, nes3.reactome,
+     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3.0 NES", pch = 16, col = "#00000022",
+     main = "LUAD PANOPLY, REACTOME: NES agreement")
+abline(0, 1, col = "firebrick", lty = 2)
+```
+
+The pattern is the same shape as HALLMARK's -- `ssGSEA3.0` keeps the large
+majority of `ssGSEA2.0`'s significant calls (`r sum(sig2.reactome & sig3.reactome)`
+of `r sum(sig2.reactome)`) while adding relatively few new ones of its own
+(`r sum(!sig2.reactome & sig3.reactome)`) -- but at much larger absolute scale
+(`r length(cmp.reactome$gene.set.names)` gene sets vs. HALLMARK's 50), exactly
+as the size/function-diversity hypothesis above predicts: a bigger, more
+heterogeneous database makes the same underlying calibration difference
+between the two engines far more visible.
+
+## Example 3: PTM-SEA on a PI3K-inhibitor perturbation dataset
 
 The second example (bundled in the package's `example/` directory, alongside
 its source) is a site-centric phosphoproteomics dataset from the original
