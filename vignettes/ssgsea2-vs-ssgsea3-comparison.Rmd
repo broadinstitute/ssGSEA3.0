@@ -1,10 +1,10 @@
 ---
-title: "ssGSEA3: from permutation testing to gene-level bootstrap resampling"
+title: "ssGSEA3.0: from permutation testing to gene-level bootstrap resampling"
 output:
   rmarkdown::html_vignette:
     css: ssgsea3-vignette-style.css
 vignette: >
-  %\VignetteIndexEntry{ssGSEA3: from permutation testing to gene-level bootstrap resampling}
+  %\VignetteIndexEntry{ssGSEA3.0: from permutation testing to gene-level bootstrap resampling}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -15,7 +15,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height
 
 ## Overview
 
-`ssGSEA3` runs single-sample Gene Set Enrichment Analysis (ssGSEA) on gene-centric
+`ssGSEA3.0` runs single-sample Gene Set Enrichment Analysis (ssGSEA) on gene-centric
 expression data, and PTM-Signature Enrichment Analysis (PTM-SEA) on site-centric
 phosphoproteomics data scored against the directional
 [PTM signatures database (PTMsigDB)](https://proteomics.broadapps.org/ptmsigdb/).
@@ -54,7 +54,7 @@ to 3/14 at 24 hours. Fixing the false-positive problem this way also suppressed 
 signal -- a fundamental validity-vs-power tension that a purely permutation-based
 approach could not resolve.
 
-`ssGSEA3` circumvents the need for this tradeoff by using bootstrap sampling. In a
+`ssGSEA3.0` circumvents the need for this tradeoff by using bootstrap sampling. In a
 traditional permutation test, random permutations of the data are used to derive the
 null distribution, and the p-value is calculated based on how extreme the observed
 value is compared to the null distribution. Here, we use bootstrap sampling to
@@ -128,7 +128,7 @@ res$sample.names <- unname(cluster.names[res$sample.names])
 
 ```{r luad-heatmap, fig.width = 8, fig.height = 10}
 ht <- plot_ssgsea_heatmap(res, top_n = 10, fdr.max = 0.05,
-                           title = "LUAD PANOPLY -- HALLMARK (ssGSEA3)")
+                           title = "LUAD PANOPLY -- HALLMARK (ssGSEA3.0)")
 ComplexHeatmap::draw(ht)
 ```
 
@@ -165,19 +165,19 @@ cat("NES Spearman rho: ", round(cor(nes2.luad, nes3.luad, method = "spearman"), 
 sig2.luad <- apply(cmp.luad$ssgsea2.fdr < 0.05, 1, any)
 sig3.luad <- apply(cmp.luad$ssgsea3.fdr < 0.05, 1, any)
 cat("\nGene sets significant (FDR < 0.05 in >=1 sample), of", length(cmp.luad$gene.set.names), "total:\n")
-cat("  ssGSEA2.0:", sum(sig2.luad), " ssGSEA3:", sum(sig3.luad),
+cat("  ssGSEA2.0:", sum(sig2.luad), " ssGSEA3.0:", sum(sig3.luad),
     " both:", sum(sig2.luad & sig3.luad), " ssGSEA2.0-only:", sum(sig2.luad & !sig3.luad),
-    " ssGSEA3-only:", sum(!sig2.luad & sig3.luad), "\n")
+    " ssGSEA3.0-only:", sum(!sig2.luad & sig3.luad), "\n")
 ```
 
 ```{r luad-scatter, fig.height = 5}
 plot(nes2.luad, nes3.luad,
-     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3 NES", pch = 16, col = "#00000066",
+     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3.0 NES", pch = 16, col = "#00000066",
      main = "LUAD PANOPLY, HALLMARK: NES agreement")
 abline(0, 1, col = "firebrick", lty = 2)
 ```
 
-`ssGSEA3` agrees with `ssGSEA2.0` on the overwhelming majority of significant
+`ssGSEA3.0` agrees with `ssGSEA2.0` on the overwhelming majority of significant
 calls (`r sum(sig2.luad & sig3.luad)` shared), while dropping
 `r sum(sig2.luad & !sig3.luad)` calls unique to `ssGSEA2.0` and adding almost
 none of its own -- consistent with correcting a false-positive-prone regime
@@ -217,7 +217,7 @@ grouping used above:
 
 ```{r ptmsea-heatmap, fig.width = 8, fig.height = 9}
 ht.ptmsea <- plot_ssgsea_heatmap(res.ptmsea, top_n = 10, fdr.max = 0.05,
-                                  title = "PI3K perturbation -- PTMsigDB v2.0.0 (ssGSEA3)")
+                                  title = "PI3K perturbation -- PTMsigDB v2.0.0 (ssGSEA3.0)")
 ComplexHeatmap::draw(ht.ptmsea)
 ```
 
@@ -251,19 +251,19 @@ cat("FDR Spearman rho: ", round(cor(fdr2, fdr3, method = "spearman"), 3), "\n")
 sig2 <- apply(cmp$ssgsea2.fdr < 0.05, 1, any)
 sig3 <- apply(cmp$ssgsea3.fdr < 0.05, 1, any)
 cat("\nGene sets significant (FDR < 0.05 in >=1 sample), of", length(cmp$gene.set.names), "total:\n")
-cat("  ssGSEA2.0:", sum(sig2), " ssGSEA3:", sum(sig3),
+cat("  ssGSEA2.0:", sum(sig2), " ssGSEA3.0:", sum(sig3),
     " both:", sum(sig2 & sig3), " ssGSEA2.0-only:", sum(sig2 & !sig3),
-    " ssGSEA3-only:", sum(!sig2 & sig3), "\n")
+    " ssGSEA3.0-only:", sum(!sig2 & sig3), "\n")
 ```
 
 ```{r ptmsea-scatter, fig.height = 5}
 plot(nes2, nes3,
-     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3 NES", pch = 16, col = "#00000066",
+     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3.0 NES", pch = 16, col = "#00000066",
      main = "PI3K perturbation, PTMsigDB v2.0.0: NES agreement")
 abline(0, 1, col = "firebrick", lty = 2)
 ```
 
-`ssGSEA3` retains the large majority of `ssGSEA2.0`'s significant calls (`r sum(sig2 & sig3)`
+`ssGSEA3.0` retains the large majority of `ssGSEA2.0`'s significant calls (`r sum(sig2 & sig3)`
 of `r sum(sig2)`) while finding substantially more overall (`r sum(sig3)` vs.
 `r sum(sig2)`) -- consistent with the confirmed power advantage for directional
 scoring described above, now demonstrated on a real, published dataset.
@@ -272,7 +272,7 @@ scoring described above, now demonstrated on a real, published dataset.
 
 A real power advantage should surface signatures that make sense for *this specific*
 perturbation, not an arbitrary scattering of unrelated biology. Of the
-`r sum(!sig2 & sig3)` signatures significant under `ssGSEA3` but never
+`r sum(!sig2 & sig3)` signatures significant under `ssGSEA3.0` but never
 significant (in either sample) under `ssGSEA2.0`, several sit directly on the
 PI3K/AKT/mTOR axis this dataset perturbs:
 
@@ -312,9 +312,9 @@ A related, separate observation: `PERT-PSP_WORTMANNIN` -- a PTMsigDB signature
 for an *unrelated experiment's* treatment with wortmannin, another PI3K
 inhibitor -- was already significant under `ssGSEA2.0` at 24h (FDR
 `r signif(cmp$ssgsea2.fdr["PERT-PSP_WORTMANNIN", 2], 2)`), so it is not part of
-the "newly significant" tally above. But `ssGSEA3` closes a near-miss at 6h
+the "newly significant" tally above. But `ssGSEA3.0` closes a near-miss at 6h
 (FDR `r signif(cmp$ssgsea2.fdr["PERT-PSP_WORTMANNIN", 1], 2)` under `ssGSEA2.0`,
-`r signif(cmp$ssgsea3.fdr["PERT-PSP_WORTMANNIN", 1], 2)` under `ssGSEA3`) and
+`r signif(cmp$ssgsea3.fdr["PERT-PSP_WORTMANNIN", 1], 2)` under `ssGSEA3.0`) and
 dramatically strengthens the 24h call (NES
 `r round(cmp$ssgsea2.nes["PERT-PSP_WORTMANNIN", 2], 1)` to
 `r round(cmp$ssgsea3.nes["PERT-PSP_WORTMANNIN", 2], 1)`) -- close to a positive

@@ -1,11 +1,11 @@
-# ssGSEA3
+# ssGSEA3.0
 
 An installable R package for gene-centric **single sample Gene Set Enrichment
 Analysis (ssGSEA)** of expression data (e.g. mRNAs, proteins) and site-centric
 **PTM Signature Enrichment Analysis (PTM-SEA)** [1] of phosphoproteomics data
 using the [**PTM signatures database (PTMsigDB)**](https://proteomics.broadapps.org/ptmsigdb/) [1].
 
-`ssGSEA3` replaces `ssGSEA2.0`'s gene-label permutation testing with a
+`ssGSEA3.0` replaces `ssGSEA2.0`'s gene-label permutation testing with a
 gene-level bootstrap for significance, fixing a known weight-dependent
 calibration issue in the original approach without losing statistical power
 -- see `vignette("ssgsea2-vs-ssgsea3-comparison")` for the full story and a
@@ -14,7 +14,7 @@ side-by-side comparison against the original `ssGSEA2.0` on real data.
 
 ## Official ssGSEA codebase
 
-`ssGSEA3` is an update to `ssGSEA2.0`, developed alongside our [manuscript](https://www.mcponline.org/content/18/3/576.abstract) describing PTM-SEA and [PTMsigDB](https://proteomics.broadapps.org/ptmsigdb/). It is **not the official repository for ssGSEA**. For the official ssGSEA codebase, see [here](https://github.com/GSEA-MSigDB/ssGSEA-gpmodule); for the official GenePattern module, see [here](https://www.genepattern.org/modules/docs/ssGSEAProjection/4).
+`ssGSEA3.0` is an update to `ssGSEA2.0`, developed alongside our [manuscript](https://www.mcponline.org/content/18/3/576.abstract) describing PTM-SEA and [PTMsigDB](https://proteomics.broadapps.org/ptmsigdb/). It is **not the official repository for ssGSEA**. For the official ssGSEA codebase, see [here](https://github.com/GSEA-MSigDB/ssGSEA-gpmodule); for the official GenePattern module, see [here](https://www.genepattern.org/modules/docs/ssGSEAProjection/4).
 
 
 ## Installation
@@ -27,7 +27,7 @@ remotes::install_github("broadinstitute/ssGSEA3.0", build_vignettes = TRUE)
 
 ## Quick start
 
-`ssGSEA3` covers the full pipeline from a raw GCT file to a summary heatmap:
+`ssGSEA3.0` covers the full pipeline from a raw GCT file to a summary heatmap:
 
 ```r
 library(ssGSEA3)
@@ -85,7 +85,7 @@ PTM-Signature Enrichment Analysis (PTM-SEA) is a modified version of ssGSEA to p
 
 ## Example datasets
 
-`ssGSEA3` bundles two worked examples in `example/` (used by the package
+`ssGSEA3.0` bundles two worked examples in `example/` (used by the package
 vignette):
 
 - **Ordinary ssGSEA**: a PANOPLY LUAD tumor NMF factorization
