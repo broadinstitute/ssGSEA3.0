@@ -99,6 +99,41 @@ test_that("plot_ssgsea_heatmap: color scale is zero-centered but NOT forced symm
   expect_equal(range(breaks), c(-8, 3))
 })
 
+test_that("plot_ssgsea_heatmap: default auto-scale clamps outliers instead of stretching to them", {
+  ## 200 modest values (range -3..3) plus a single extreme outlier (100) --
+  ## a literal min/max default would stretch the whole scale to 100, making
+  ## every modest row render pale/washed-out even though this is a single
+  ## standalone heatmap (no cross-figure nes.range involved at all). The
+  ## percentile-clamped default should keep the scale close to the modest
+  ## values' own range instead, saturating (not flattening) the outlier row.
+  terms <- paste0("T", 1:201)
+  vals <- c(seq(-3, 3, length.out = 200), 100)
+  scores <- matrix(vals, nrow = 201, ncol = 1, dimnames = list(terms, "S1"))
+  fdr <- matrix(runif(201), nrow = 201, dimnames = list(terms, "S1"))
+  result <- make_result(terms, scores, fdr, sample.names = "S1")
+
+  ht <- plot_ssgsea_heatmap(result, terms = terms, show_row_dend = FALSE, show_row_names = FALSE)
+  col_fun <- ht@matrix_color_mapping@col_fun
+  breaks <- environment(col_fun)$breaks
+  expect_lt(max(breaks), 10)
+})
+
+test_that("plot_ssgsea_heatmap: nes.range overrides the auto-computed color scale", {
+  terms <- c("A", "B")
+  scores <- matrix(c(2.3, -7.8, 1, -1), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+  fdr <- matrix(runif(4), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+  result <- make_result(terms, scores, fdr)
+
+  ## without nes.range, this subset's own modest values ([-1, 1]) would
+  ## stretch the scale to fill red/blue at +-1 -- pinning nes.range to a
+  ## wider range (as if matching a companion heatmap drawn from a larger
+  ## term selection) should make those same values render pale instead
+  ht <- plot_ssgsea_heatmap(result, terms = "B", nes.range = c(-8, 3))
+  col_fun <- ht@matrix_color_mapping@col_fun
+  breaks <- environment(col_fun)$breaks
+  expect_equal(range(breaks), c(-8, 3))
+})
+
 test_that("plot_ssgsea_heatmap: legend name reflects the result's actual score type", {
   terms <- c("A", "B")
   scores <- matrix(c(1, -1, 2, -2), nrow = 2, dimnames = list(terms, c("S1", "S2")))

@@ -61,6 +61,20 @@
 #'   device (which is what a bare `ComplexHeatmap::Heatmap()` call does by
 #'   default when `width`/`height` aren't set).
 #' @param title Optional heatmap title.
+#' @param nes.range Optional `c(min, max)` to fix the color scale instead of
+#'   auto-computing it from the terms/samples actually being plotted. Pin
+#'   this to the same values across several heatmaps -- e.g. one showing all
+#'   significant terms and another showing a hand-picked illustrative subset
+#'   -- so a subset with modest scores reads as visually modest rather than
+#'   stretching to fill the color scale's extremes on its own narrower range.
+#'   When computing this externally from a larger pool (e.g. a whole gene set
+#'   database), do NOT use that pool's literal min/max -- a single extreme
+#'   outlier gene set (common in real data; e.g. a tiny gene set with an
+#'   inflated score) will dominate the range and wash out every other
+#'   heatmap pinned to it, including ones with genuinely large, real effect
+#'   sizes. Use a percentile clamp instead (e.g. the 1st/99th percentile of
+#'   NES among gene sets significant somewhere in that pool) so a handful of
+#'   outliers can't blow out the shared scale.
 #' @param title_fontsize Font size for `title`. Default 14 suits a
 #'   standalone heatmap with several sample columns; narrow panels (e.g. 2
 #'   columns) may need a smaller size to avoid the title overflowing its own
@@ -80,8 +94,8 @@ plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
                                  direction = c("both", "pos", "neg"), fdr.max = 0.05,
                                  samples = NULL, split_by_db_category = TRUE,
                                  cluster_rows = TRUE, cell.size = 10, title = NULL,
-                                 title_fontsize = 14, show_row_names = TRUE, show_category = TRUE,
-                                 show_heatmap_legend = TRUE, show_row_dend = TRUE) {
+                                 nes.range = NULL, title_fontsize = 14, show_row_names = TRUE,
+                                 show_category = TRUE, show_heatmap_legend = TRUE, show_row_dend = TRUE) {
   if (is.null(terms)) {
     terms <- select_top_terms(result, top_n = top_n, direction = direction, fdr.max = fdr.max)
   }
@@ -129,9 +143,32 @@ plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
   ## zero-centered but *not* forced symmetric -- an equal-magnitude scale
   ## wastes most of its resolution (and looks like a bug: a legend that goes
   ## to -40 when nothing in the data is more negative than -12) whenever the
-  ## positive and negative extremes differ, which real scores usually do
-  max.val <- ceiling(max(mat, na.rm = TRUE))
-  min.val <- floor(min(mat, na.rm = TRUE))
+  ## positive and negative extremes differ, which real scores usually do.
+  ##
+  ## Auto-computed from `mat` by default, as a 1st/99th percentile clamp --
+  ## deliberately NOT the literal min/max. A single outlier row (one gene
+  ## set with an inflated score, which does happen in real data) would
+  ## otherwise dominate the whole scale and wash out every other row in this
+  ## *same* heatmap, not just rows in some other figure. The clamp saturates
+  ## that one row's color instead of letting it flatten everyone else's.
+  ##
+  ## Separately, a small/curated `terms` subset with genuinely modest scores
+  ## still auto-computes its own (small) range by default, which stretches
+  ## the color scale to those modest extremes and visually exaggerates how
+  ## strong they look relative to a heatmap drawn from a larger/different
+  ## term selection. Pass nes.range explicitly to pin the same scale across
+  ## several heatmaps for that case (e.g. one drawn from the full result vs.
+  ## one showing a hand-picked illustrative subset) -- and if computing that
+  ## externally from a larger pool spanning multiple calls, apply the same
+  ## percentile clamp there too, for the same reason.
+  if (is.null(nes.range)) {
+    nes.q <- stats::quantile(mat, c(0.01, 0.99), na.rm = TRUE)
+    min.val <- floor(nes.q[1])
+    max.val <- ceiling(nes.q[2])
+  } else {
+    min.val <- nes.range[1]
+    max.val <- nes.range[2]
+  }
   col_fun <- circlize::colorRamp2(c(min.val, 0, max.val), c("blue3", "white", "#DC3220"))
 
   ComplexHeatmap::Heatmap(

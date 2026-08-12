@@ -15,6 +15,7 @@ plot_ssgsea_heatmap(
   cluster_rows = TRUE,
   cell.size = 10,
   title = NULL,
+  nes.range = NULL,
   title_fontsize = 14,
   show_row_names = TRUE,
   show_category = TRUE,
@@ -67,6 +68,21 @@ device (which is what a bare \code{ComplexHeatmap::Heatmap()} call does by
 default when \code{width}/\code{height} aren't set).}
 
 \item{title}{Optional heatmap title.}
+
+\item{nes.range}{Optional \code{c(min, max)} to fix the color scale instead of
+auto-computing it from the terms/samples actually being plotted. Pin
+this to the same values across several heatmaps -- e.g. one showing all
+significant terms and another showing a hand-picked illustrative subset
+-- so a subset with modest scores reads as visually modest rather than
+stretching to fill the color scale's extremes on its own narrower range.
+When computing this externally from a larger pool (e.g. a whole gene set
+database), do NOT use that pool's literal min/max -- a single extreme
+outlier gene set (common in real data; e.g. a tiny gene set with an
+inflated score) will dominate the range and wash out every other
+heatmap pinned to it, including ones with genuinely large, real effect
+sizes. Use a percentile clamp instead (e.g. the 1st/99th percentile of
+NES among gene sets significant somewhere in that pool) so a handful of
+outliers can't blow out the shared scale.}
 
 \item{title_fontsize}{Font size for \code{title}. Default 14 suits a
 standalone heatmap with several sample columns; narrow panels (e.g. 2
