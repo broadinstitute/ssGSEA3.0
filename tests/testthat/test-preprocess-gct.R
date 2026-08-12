@@ -16,6 +16,11 @@ make_gct_file <- function(mat, rid, cid, rdesc = NULL) {
 ##                              gcr
 ## #####################################################################
 test_that("gcr keeps every row and relabels by gene symbol", {
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
   mat <- matrix(1:6, nrow = 3, ncol = 2)
   rdesc <- data.frame(geneSymbol = c("GeneA", "GeneA", "GeneB"), row.names = c("p1", "p2", "p3"))
   f <- make_gct_file(mat, c("p1", "p2", "p3"), c("S1", "S2"), rdesc)
@@ -36,6 +41,11 @@ test_that("gcr keeps every row and relabels by gene symbol", {
 ##                     gc: mean / median / abs.max
 ## #####################################################################
 test_that("gc mean/median/abs.max collapse multiple rows per gene", {
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
   mat <- matrix(c(1, 3, 10, 10,   ## S1: probe1(GeneA)=1, probe2(GeneA)=3, probe1(GeneB)=10, probe2(GeneB)=10
                   2, 4, 5, 100),  ## S2
                 nrow = 4, ncol = 2,
@@ -56,6 +66,11 @@ test_that("gc mean/median/abs.max collapse multiple rows per gene", {
 ##                     gc: mode = "sd" (the fix)
 ## #####################################################################
 test_that("gc mode='sd' keeps the most cross-sample-variable probe per gene (previously crashed)", {
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
   ## GeneA: probe1 is flat (sd=0), probe2 is variable (sd>0) -> keep probe2
   mat <- matrix(c(
     10, 10, 10,   ## pA1 (flat)
@@ -76,6 +91,11 @@ test_that("gc mode='sd' keeps the most cross-sample-variable probe per gene (pre
 ##                     gc: mode = "SGT"
 ## #####################################################################
 test_that("gc mode='SGT' keeps the lowest subgroup per gene", {
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
   mat <- matrix(1:6, nrow = 3, ncol = 2, dimnames = list(c("p1", "p2", "p3"), c("S1", "S2")))
   rdesc <- data.frame(
     geneSymbol = c("GeneA", "GeneA", "GeneB"),
@@ -93,6 +113,11 @@ test_that("gc mode='SGT' keeps the lowest subgroup per gene", {
 ##                  ssc (seqwin path -- no ID mapping needed)
 ## #####################################################################
 test_that("ssc/seqwin explodes multi-site peptides and averages duplicate site detections", {
+  wd <- withr::local_tempdir()
+  old.wd <- getwd()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
   ## PEP1 covers 2 sites (SITEAAAA, SITEBBBB); PEP2 separately/singly covers
   ## SITEAAAA (so only SITEAAAA -- not SITEBBBB -- is excluded from PEP1's
   ## multi-site list, leaving PEP1 to represent SITEBBBB alone). PEP3 and
