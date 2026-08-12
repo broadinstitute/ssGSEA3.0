@@ -180,3 +180,53 @@ test_that("plot_ssgsea_heatmap: samples= restricts to a subset of columns", {
   ht <- plot_ssgsea_heatmap(result, terms = terms, samples = c("S1", "S3"))
   expect_equal(colnames(ht@matrix), c("S1", "S3"))
 })
+
+test_that("plot_ssgsea_heatmap: show_row_names/show_category/show_heatmap_legend can be individually disabled", {
+  terms <- c("HALLMARK_TNFA_SIGNALING_VIA_NFKB", "HALLMARK_HYPOXIA")
+  scores <- matrix(c(5, -3, 2, 1), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+  fdr <- matrix(c(0.01, 0.02, 0.03, 0.04), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+  result <- make_result(terms, scores, fdr)
+
+  ht.default <- plot_ssgsea_heatmap(result, terms = terms)
+  expect_true(ht.default@row_names_param$show)
+  expect_true(ht.default@heatmap_param$show_heatmap_legend)
+
+  ht.hidden <- plot_ssgsea_heatmap(result, terms = terms, show_row_names = FALSE,
+                                    show_category = FALSE, show_heatmap_legend = FALSE)
+  expect_false(ht.hidden@row_names_param$show)
+  expect_false(ht.hidden@heatmap_param$show_heatmap_legend)
+  expect_null(ht.hidden@left_annotation)
+})
+
+test_that("plot_ssgsea_heatmap: cluster_rows accepts a precomputed clustering function, giving identical row order across heatmaps built from different data (e.g. orig/fixed/v3 comparison panels)", {
+  terms <- c("A", "B", "C", "D")
+  set.seed(1)
+  scores1 <- matrix(rnorm(8), nrow = 4, dimnames = list(terms, c("S1", "S2")))
+  scores2 <- scores1 + matrix(rnorm(8, sd = 0.2), nrow = 4) ## different data, same terms
+  fdr <- matrix(runif(8), nrow = 4, dimnames = list(terms, c("S1", "S2")))
+  result1 <- make_result(terms, scores1, fdr)
+  result2 <- make_result(terms, scores2, fdr)
+
+  ## a clustering function that ignores whatever matrix it's asked to
+  ## cluster and always ties back to one precomputed hclust -- this is the
+  ## mechanism the manuscript's 3-panel (orig/fixed/v3) comparison figures
+  ## rely on to keep rows aligned across panels built from different data
+  precomputed <- hclust(dist(scores1))
+  cluster_fn <- function(mat_slice) precomputed
+
+  pdf(tempfile(fileext = ".pdf")) ## draw() needs an open device
+  on.exit(dev.off(), add = TRUE)
+  ht1 <- ComplexHeatmap::draw(plot_ssgsea_heatmap(result1, terms = terms, cluster_rows = cluster_fn))
+  ht2 <- ComplexHeatmap::draw(plot_ssgsea_heatmap(result2, terms = terms, cluster_rows = cluster_fn))
+  expect_equal(ComplexHeatmap::row_order(ht1), ComplexHeatmap::row_order(ht2))
+})
+
+test_that("plot_ssgsea_heatmap: show_row_dend=FALSE suppresses the dendrogram without changing row order", {
+  terms <- c("A", "B", "C", "D")
+  scores <- matrix(rnorm(8), nrow = 4, dimnames = list(terms, c("S1", "S2")))
+  fdr <- matrix(runif(8), nrow = 4, dimnames = list(terms, c("S1", "S2")))
+  result <- make_result(terms, scores, fdr)
+
+  ht <- plot_ssgsea_heatmap(result, terms = terms, show_row_dend = FALSE)
+  expect_false(ht@row_dend_param$show)
+})

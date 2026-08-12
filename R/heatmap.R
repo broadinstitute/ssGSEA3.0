@@ -14,10 +14,13 @@
 #'   `CATEGORY-name` prefix convention (as in PTMSigDB: `KINASE-`, `PERT-`,
 #'   `PATH-`, `DISEASE-`) with more than one distinct prefix present, rows
 #'   are split by that prefix.
-#' - Otherwise, rows are hierarchically clustered (`cluster_rows`, default
-#'   `TRUE`) using `ComplexHeatmap`'s own built-in clustering rather than
-#'   `pw_hm()`'s `seriation::seriate()` -- avoids an extra dependency for
-#'   what's typically a very similar row order.
+#'
+#' In every case, rows are hierarchically clustered (`cluster_rows`, default
+#' `TRUE`) using `ComplexHeatmap`'s own built-in clustering rather than
+#' `pw_hm()`'s `seriation::seriate()` -- avoids an extra dependency for what's
+#' typically a very similar row order. When a grouping applies, clustering
+#' happens *within* each group/slice (slice order itself is left as the
+#' groups' first-encountered order, not reclustered).
 #'
 #' @param result An `ssgsea_result`, as returned by [ssGSEA3()].
 #' @param terms Character vector of gene set names to plot. If `NULL`
@@ -31,15 +34,26 @@
 #' @param split_by_db_category If `TRUE` (default), auto-detect and split by
 #'   a shared `CATEGORY-name` prefix (e.g. PTMSigDB) when HALLMARK grouping
 #'   doesn't apply.
-#' @param cluster_rows Whether to hierarchically cluster rows when neither
-#'   HALLMARK nor prefix-based grouping applies. Ignored (rows are left in
-#'   `terms` order within each split) when either grouping does apply.
+#' @param cluster_rows Whether to hierarchically cluster rows -- within each
+#'   group/slice when HALLMARK or prefix-based grouping applies, or across
+#'   all rows otherwise.
 #' @param cell.size Fixed cell width/height, in points, matching `pw_hm()`'s
 #'   own `cw`/`ch` default of 10 -- keeps cells square regardless of the
 #'   number of rows/columns, rather than stretching to fill the plotting
 #'   device (which is what a bare `ComplexHeatmap::Heatmap()` call does by
 #'   default when `width`/`height` aren't set).
 #' @param title Optional heatmap title.
+#' @param title_fontsize Font size for `title`. Default 14 suits a
+#'   standalone heatmap with several sample columns; narrow panels (e.g. 2
+#'   columns) may need a smaller size to avoid the title overflowing its own
+#'   column width, particularly when concatenating several calls' results
+#'   side by side.
+#' @param show_row_names,show_category,show_heatmap_legend,show_row_dend
+#'   Individually toggle the row names, category color bar/title, color-scale
+#'   legend, and row dendrogram -- all default `TRUE` for standalone use, but
+#'   useful to selectively disable when concatenating several calls' results
+#'   into one multi-panel comparison figure (e.g. category bar only on the
+#'   first panel, row names only on the last, one shared legend).
 #' @return A [ComplexHeatmap::Heatmap-class] object -- draw it with
 #'   `ComplexHeatmap::draw()`, or save with e.g. `pdf()`/`png()` around that
 #'   call.
@@ -47,7 +61,9 @@
 plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
                                  direction = c("both", "pos", "neg"), fdr.max = 0.05,
                                  samples = NULL, split_by_db_category = TRUE,
-                                 cluster_rows = TRUE, cell.size = 10, title = NULL) {
+                                 cluster_rows = TRUE, cell.size = 10, title = NULL,
+                                 title_fontsize = 14, show_row_names = TRUE, show_category = TRUE,
+                                 show_heatmap_legend = TRUE, show_row_dend = TRUE) {
   if (is.null(terms)) {
     terms <- select_top_terms(result, top_n = top_n, direction = direction, fdr.max = fdr.max)
   }
@@ -70,7 +86,6 @@ plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
   row_split <- NULL
   row_labels <- terms
   left_annotation <- NULL
-  do.cluster <- cluster_rows
 
   if (is.hallmark) {
     category <- unname(hallmark_categories[terms])
@@ -82,15 +97,15 @@ plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
     ## selections, or a HALLMARK set added upstream but not yet in our table)
     cat.colors <- hallmark_category_colors[intersect(names(hallmark_category_colors), unique(category))]
     if ("" %in% category) cat.colors[""] <- "grey90"
-    left_annotation <- ComplexHeatmap::rowAnnotation(
-      category = category,
-      col = list(category = cat.colors),
-      show_annotation_name = FALSE
-    )
-    do.cluster <- FALSE
+    if (show_category) {
+      left_annotation <- ComplexHeatmap::rowAnnotation(
+        category = category,
+        col = list(category = cat.colors),
+        show_annotation_name = FALSE
+      )
+    }
   } else if (is.multi.category) {
     row_split <- factor(prefixes, levels = unique(prefixes))
-    do.cluster <- FALSE
   }
 
   ## zero-centered but *not* forced symmetric -- an equal-magnitude scale
@@ -110,14 +125,31 @@ plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
     height = grid::unit(nrow(mat) * cell.size, "points"),
     row_split = row_split,
     cluster_row_slices = FALSE,
-    cluster_rows = do.cluster,
+    cluster_rows = cluster_rows,
+    ## ComplexHeatmap's default row_dend_reorder=TRUE re-sorts a *supplied*
+    ## clustering's leaves to better match this specific matrix's data,
+    ## confirmed empirically to make two Heatmap() calls given the identical
+    ## clustering object/function but different matrices pick different leaf
+    ## orders. That's the right default when `cluster_rows` is the plain
+    ## logical toggle above (still let ComplexHeatmap's own fresh clustering
+    ## look its best) but wrong when the caller hands in their own
+    ## hclust/dendrogram/function -- they want that structure honored
+    ## exactly, e.g. to keep row order identical across several heatmaps
+    ## built from different data (this manuscript's orig/fixed/v3 comparison
+    ## panels all sharing one precomputed clustering).
+    row_dend_reorder = is.logical(cluster_rows),
+    show_row_dend = show_row_dend,
     cluster_columns = FALSE,
-    row_labels = row_labels,
-    ## ComplexHeatmap's own default (6cm) silently truncates long gene set
-    ## names (e.g. full HALLMARK_* names) regardless of device size -- this
-    ## widens the cap rather than raising it per-plot from the caller side
-    row_names_max_width = grid::unit(12, "cm"),
+    row_labels = if (show_row_names) row_labels else rep("", length(row_labels)),
+    show_row_names = show_row_names,
+    ## ComplexHeatmap's own default (6cm) cap silently truncates the
+    ## *reserved layout space* for row names (not just clipping the text) once
+    ## labels run past it -- long names then overflow straight into whatever
+    ## comes next (the legend). Size this to the longest label actually shown
+    ## instead of a fixed guess.
+    row_names_max_width = grid::unit(if (show_row_names) max(nchar(row_labels)) * 0.23 else 0.1, "cm"),
     left_annotation = left_annotation,
+    show_heatmap_legend = show_heatmap_legend,
     cell_fun = function(j, i, x, y, width, height, fill) {
       grid::grid.rect(x = x, y = y, width = width, height = height, gp = grid::gpar(col = "#555555", fill = fill))
       if (!is.na(fdr[i, j]) && fdr[i, j] < fdr.max) {
@@ -132,8 +164,9 @@ plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
         grid::grid.text("*", x, y - grid::unit(0.15, "char"), gp = grid::gpar(col = star.col))
       }
     },
+    row_title = if (show_category || is.null(row_split)) NULL else character(0),
     column_title = title,
-    column_title_gp = grid::gpar(fontsize = 14, fontface = "bold"),
+    column_title_gp = grid::gpar(fontsize = title_fontsize, fontface = "bold"),
     row_title_rot = 0,
     row_names_gp = grid::gpar(fontsize = 9),
     column_names_gp = grid::gpar(fontsize = 9)

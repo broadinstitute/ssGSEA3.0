@@ -14,7 +14,12 @@ plot_ssgsea_heatmap(
   split_by_db_category = TRUE,
   cluster_rows = TRUE,
   cell.size = 10,
-  title = NULL
+  title = NULL,
+  title_fontsize = 14,
+  show_row_names = TRUE,
+  show_category = TRUE,
+  show_heatmap_legend = TRUE,
+  show_row_dend = TRUE
 )
 }
 \arguments{
@@ -35,9 +40,9 @@ Defaults to all samples in \code{result}.}
 a shared \code{CATEGORY-name} prefix (e.g. PTMSigDB) when HALLMARK grouping
 doesn't apply.}
 
-\item{cluster_rows}{Whether to hierarchically cluster rows when neither
-HALLMARK nor prefix-based grouping applies. Ignored (rows are left in
-\code{terms} order within each split) when either grouping does apply.}
+\item{cluster_rows}{Whether to hierarchically cluster rows -- within each
+group/slice when HALLMARK or prefix-based grouping applies, or across
+all rows otherwise.}
 
 \item{cell.size}{Fixed cell width/height, in points, matching \code{pw_hm()}'s
 own \code{cw}/\code{ch} default of 10 -- keeps cells square regardless of the
@@ -46,6 +51,18 @@ device (which is what a bare \code{ComplexHeatmap::Heatmap()} call does by
 default when \code{width}/\code{height} aren't set).}
 
 \item{title}{Optional heatmap title.}
+
+\item{title_fontsize}{Font size for \code{title}. Default 14 suits a
+standalone heatmap with several sample columns; narrow panels (e.g. 2
+columns) may need a smaller size to avoid the title overflowing its own
+column width, particularly when concatenating several calls' results
+side by side.}
+
+\item{show_row_names, show_category, show_heatmap_legend, show_row_dend}{Individually toggle the row names, category color bar/title, color-scale
+legend, and row dendrogram -- all default \code{TRUE} for standalone use, but
+useful to selectively disable when concatenating several calls' results
+into one multi-panel comparison figure (e.g. category bar only on the
+first panel, row names only on the last, one shared legend).}
 }
 \value{
 A \link[ComplexHeatmap:Heatmap-class]{ComplexHeatmap::Heatmap} object -- draw it with
@@ -68,9 +85,12 @@ exactly), with the \code{HALLMARK_} prefix stripped from row labels.
 \code{CATEGORY-name} prefix convention (as in PTMSigDB: \verb{KINASE-}, \verb{PERT-},
 \verb{PATH-}, \verb{DISEASE-}) with more than one distinct prefix present, rows
 are split by that prefix.
-\item Otherwise, rows are hierarchically clustered (\code{cluster_rows}, default
-\code{TRUE}) using \code{ComplexHeatmap}'s own built-in clustering rather than
-\code{pw_hm()}'s \code{seriation::seriate()} -- avoids an extra dependency for
-what's typically a very similar row order.
 }
+
+In every case, rows are hierarchically clustered (\code{cluster_rows}, default
+\code{TRUE}) using \code{ComplexHeatmap}'s own built-in clustering rather than
+\code{pw_hm()}'s \code{seriation::seriate()} -- avoids an extra dependency for what's
+typically a very similar row order. When a grouping applies, clustering
+happens \emph{within} each group/slice (slice order itself is left as the
+groups' first-encountered order, not reclustered).
 }
