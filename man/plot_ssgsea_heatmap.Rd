@@ -40,9 +40,25 @@ Defaults to all samples in \code{result}.}
 a shared \code{CATEGORY-name} prefix (e.g. PTMSigDB) when HALLMARK grouping
 doesn't apply.}
 
-\item{cluster_rows}{Whether to hierarchically cluster rows -- within each
-group/slice when HALLMARK or prefix-based grouping applies, or across
-all rows otherwise.}
+\item{cluster_rows}{Controls row order/dendrogram; forwarded as-is to
+\code{\link[ComplexHeatmap:Heatmap]{ComplexHeatmap::Heatmap()}}'s own \code{cluster_rows}, which accepts three
+different kinds of value:
+\itemize{
+\item \code{TRUE} (default): cluster fresh from the matrix being plotted.
+Within each group/slice when HALLMARK or prefix-based grouping
+applies, across all rows otherwise. Dendrogram lines are drawn.
+\item \code{FALSE}: no clustering at all -- rows are shown in exactly the
+order given in \code{terms} (or the order \code{\link[=select_top_terms]{select_top_terms()}} returned).
+\item A precomputed \code{hclust}/\code{dendrogram} object, or a function that
+takes the matrix being plotted and returns one: your clustering is
+used exactly as given, \emph{without} being re-sorted to better fit this
+particular matrix's values (\code{Heatmap()}'s own \code{row_dend_reorder}
+otherwise does this by default, which is why this case turns it
+off automatically here). Useful for drawing several
+\code{plot_ssgsea_heatmap()} results side by side (e.g. comparing two
+pipeline versions) with identical row order/dendrogram across
+panels, even though each panel's underlying matrix differs.
+}}
 
 \item{cell.size}{Fixed cell width/height, in points, matching \code{pw_hm()}'s
 own \code{cw}/\code{ch} default of 10 -- keeps cells square regardless of the
@@ -87,10 +103,12 @@ exactly), with the \code{HALLMARK_} prefix stripped from row labels.
 are split by that prefix.
 }
 
-In every case, rows are hierarchically clustered (\code{cluster_rows}, default
-\code{TRUE}) using \code{ComplexHeatmap}'s own built-in clustering rather than
-\code{pw_hm()}'s \code{seriation::seriate()} -- avoids an extra dependency for what's
-typically a very similar row order. When a grouping applies, clustering
-happens \emph{within} each group/slice (slice order itself is left as the
-groups' first-encountered order, not reclustered).
+In every case, rows are hierarchically clustered by default
+(\code{cluster_rows = TRUE}) using \code{ComplexHeatmap}'s own built-in clustering
+rather than \code{pw_hm()}'s \code{seriation::seriate()} -- avoids an extra
+dependency for what's typically a very similar row order. When a grouping
+applies, clustering happens \emph{within} each group/slice (slice order itself
+is left as the groups' first-encountered order, not reclustered). See the
+\code{cluster_rows} argument below for the two other values it accepts besides
+\code{TRUE}/\code{FALSE}.
 }

@@ -15,12 +15,14 @@
 #'   `PATH-`, `DISEASE-`) with more than one distinct prefix present, rows
 #'   are split by that prefix.
 #'
-#' In every case, rows are hierarchically clustered (`cluster_rows`, default
-#' `TRUE`) using `ComplexHeatmap`'s own built-in clustering rather than
-#' `pw_hm()`'s `seriation::seriate()` -- avoids an extra dependency for what's
-#' typically a very similar row order. When a grouping applies, clustering
-#' happens *within* each group/slice (slice order itself is left as the
-#' groups' first-encountered order, not reclustered).
+#' In every case, rows are hierarchically clustered by default
+#' (`cluster_rows = TRUE`) using `ComplexHeatmap`'s own built-in clustering
+#' rather than `pw_hm()`'s `seriation::seriate()` -- avoids an extra
+#' dependency for what's typically a very similar row order. When a grouping
+#' applies, clustering happens *within* each group/slice (slice order itself
+#' is left as the groups' first-encountered order, not reclustered). See the
+#' `cluster_rows` argument below for the two other values it accepts besides
+#' `TRUE`/`FALSE`.
 #'
 #' @param result An `ssgsea_result`, as returned by [ssGSEA3()].
 #' @param terms Character vector of gene set names to plot. If `NULL`
@@ -34,9 +36,25 @@
 #' @param split_by_db_category If `TRUE` (default), auto-detect and split by
 #'   a shared `CATEGORY-name` prefix (e.g. PTMSigDB) when HALLMARK grouping
 #'   doesn't apply.
-#' @param cluster_rows Whether to hierarchically cluster rows -- within each
-#'   group/slice when HALLMARK or prefix-based grouping applies, or across
-#'   all rows otherwise.
+#' @param cluster_rows Controls row order/dendrogram; forwarded as-is to
+#'   [ComplexHeatmap::Heatmap()]'s own `cluster_rows`, which accepts three
+#'   different kinds of value:
+#'   \itemize{
+#'     \item `TRUE` (default): cluster fresh from the matrix being plotted.
+#'       Within each group/slice when HALLMARK or prefix-based grouping
+#'       applies, across all rows otherwise. Dendrogram lines are drawn.
+#'     \item `FALSE`: no clustering at all -- rows are shown in exactly the
+#'       order given in `terms` (or the order [select_top_terms()] returned).
+#'     \item A precomputed `hclust`/`dendrogram` object, or a function that
+#'       takes the matrix being plotted and returns one: your clustering is
+#'       used exactly as given, *without* being re-sorted to better fit this
+#'       particular matrix's values (`Heatmap()`'s own `row_dend_reorder`
+#'       otherwise does this by default, which is why this case turns it
+#'       off automatically here). Useful for drawing several
+#'       `plot_ssgsea_heatmap()` results side by side (e.g. comparing two
+#'       pipeline versions) with identical row order/dendrogram across
+#'       panels, even though each panel's underlying matrix differs.
+#'   }
 #' @param cell.size Fixed cell width/height, in points, matching `pw_hm()`'s
 #'   own `cw`/`ch` default of 10 -- keeps cells square regardless of the
 #'   number of rows/columns, rather than stretching to fill the plotting
