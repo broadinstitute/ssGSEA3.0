@@ -12,6 +12,7 @@ plot_ssgsea_heatmap(
   fdr.max = 0.05,
   samples = NULL,
   split_by_db_category = TRUE,
+  custom_categories = NULL,
   cluster_rows = TRUE,
   cell.size = 10,
   title = NULL,
@@ -40,6 +41,21 @@ Defaults to all samples in \code{result}.}
 \item{split_by_db_category}{If \code{TRUE} (default), auto-detect and split by
 a shared \code{CATEGORY-name} prefix (e.g. PTMSigDB) when HALLMARK grouping
 doesn't apply.}
+
+\item{custom_categories}{Optional row grouping for databases with no
+HALLMARK/PTMsigDB naming convention to auto-detect (e.g. REACTOME) --
+either a path to a 2-column file mapping gene set name to category (one
+pair per line, tab- or comma-delimited; a header row is harmless, since
+it just becomes an entry that won't match any real gene set name and is
+silently unused), or an already-built named character vector (names =
+gene set name, values = category label). Terms present in \code{terms} but
+absent from this mapping are grouped into their own \code{""}-labeled
+category (colored grey) rather than erroring, since a custom category
+file will often not cover every gene set in a database. Colors are
+auto-assigned from a qualitative palette (\code{\link[grDevices:palettes]{grDevices::hcl.colors()}},
+\code{"Dark 3"}) since, unlike HALLMARK, there's no fixed bundled color table
+for arbitrary categories. Takes priority over HALLMARK/
+\code{split_by_db_category} auto-detection when supplied.}
 
 \item{cluster_rows}{Controls row order/dendrogram; forwarded as-is to
 \code{\link[ComplexHeatmap:Heatmap]{ComplexHeatmap::Heatmap()}}'s own \code{cluster_rows}, which accepts three
@@ -108,11 +124,13 @@ Reworks the lab's existing \code{pw_hm()} heatmap (base \code{pheatmap}) onto
 red scale centered at zero, and marks FDR-significant cells with \code{*}.
 }
 \details{
-Row grouping is auto-detected from the selected terms' names:
+Row grouping is determined in this order:
 \itemize{
-\item If any term is a bundled \link{hallmark_categories} name, rows are split and
-colored by HALLMARK process category (matching \code{pw_hm()}'s behavior
-exactly), with the \code{HALLMARK_} prefix stripped from row labels.
+\item If \code{custom_categories} is supplied, rows are split/colored by that
+mapping (see below) -- takes priority over the two auto-detected modes.
+\item Otherwise, if any term is a bundled \link{hallmark_categories} name, rows are
+split and colored by HALLMARK process category (matching \code{pw_hm()}'s
+behavior exactly), with the \code{HALLMARK_} prefix stripped from row labels.
 \item Otherwise, if \code{split_by_db_category} and the terms carry a shared
 \code{CATEGORY-name} prefix convention (as in PTMSigDB: \verb{KINASE-}, \verb{PERT-},
 \verb{PATH-}, \verb{DISEASE-}) with more than one distinct prefix present, rows

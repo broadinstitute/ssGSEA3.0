@@ -1,3 +1,38 @@
+#' Read a `custom_categories` argument into a name -> category lookup
+#'
+#' Accepts either a path to a 2-column (gene set name, category) file --
+#' tab-delimited if any line contains a tab, comma-delimited otherwise -- or
+#' an already-built named character vector, which is returned unchanged.
+#'
+#' @param x Path to a 2-column file, or a named character vector.
+#' @return A named character vector (names = gene set name, values =
+#'   category label).
+#' @keywords internal
+.read_custom_categories <- function(x) {
+  if (is.character(x) && length(x) == 1 && is.null(names(x))) {
+    if (!file.exists(x)) stop("`custom_categories` file not found: ", x)
+    lines <- readLines(x)
+    lines <- lines[nzchar(lines)]
+    delim <- if (any(grepl("\t", lines, fixed = TRUE))) "\t" else ","
+    parts <- strsplit(lines, delim, fixed = TRUE)
+    bad <- lengths(parts) != 2
+    if (any(bad)) {
+      stop(
+        "`custom_categories` file must have exactly 2 columns (gene set name, category) ",
+        "per line; problem on line(s): ", paste(which(bad), collapse = ", ")
+      )
+    }
+    lookup <- vapply(parts, `[[`, character(1), 2)
+    names(lookup) <- vapply(parts, `[[`, character(1), 1)
+    return(lookup)
+  }
+  if (is.character(x) && !is.null(names(x))) return(x)
+  stop(
+    "`custom_categories` must be a path to a 2-column (gene set name, category) file, ",
+    "or a named character vector (names = gene set name, values = category)."
+  )
+}
+
 #' ssGSEA/PTM-SEA summary heatmap
 #'
 #' Reworks the lab's existing `pw_hm()` heatmap (base `pheatmap`) onto
@@ -5,11 +40,13 @@
 #' (FDR-significant, then top-N by direction), colors a symmetric blue-white-
 #' red scale centered at zero, and marks FDR-significant cells with `*`.
 #'
-#' Row grouping is auto-detected from the selected terms' names:
+#' Row grouping is determined in this order:
 #'
-#' - If any term is a bundled [hallmark_categories] name, rows are split and
-#'   colored by HALLMARK process category (matching `pw_hm()`'s behavior
-#'   exactly), with the `HALLMARK_` prefix stripped from row labels.
+#' - If `custom_categories` is supplied, rows are split/colored by that
+#'   mapping (see below) -- takes priority over the two auto-detected modes.
+#' - Otherwise, if any term is a bundled [hallmark_categories] name, rows are
+#'   split and colored by HALLMARK process category (matching `pw_hm()`'s
+#'   behavior exactly), with the `HALLMARK_` prefix stripped from row labels.
 #' - Otherwise, if `split_by_db_category` and the terms carry a shared
 #'   `CATEGORY-name` prefix convention (as in PTMSigDB: `KINASE-`, `PERT-`,
 #'   `PATH-`, `DISEASE-`) with more than one distinct prefix present, rows
@@ -36,6 +73,20 @@
 #' @param split_by_db_category If `TRUE` (default), auto-detect and split by
 #'   a shared `CATEGORY-name` prefix (e.g. PTMSigDB) when HALLMARK grouping
 #'   doesn't apply.
+#' @param custom_categories Optional row grouping for databases with no
+#'   HALLMARK/PTMsigDB naming convention to auto-detect (e.g. REACTOME) --
+#'   either a path to a 2-column file mapping gene set name to category (one
+#'   pair per line, tab- or comma-delimited; a header row is harmless, since
+#'   it just becomes an entry that won't match any real gene set name and is
+#'   silently unused), or an already-built named character vector (names =
+#'   gene set name, values = category label). Terms present in `terms` but
+#'   absent from this mapping are grouped into their own `""`-labeled
+#'   category (colored grey) rather than erroring, since a custom category
+#'   file will often not cover every gene set in a database. Colors are
+#'   auto-assigned from a qualitative palette ([grDevices::hcl.colors()],
+#'   `"Dark 3"`) since, unlike HALLMARK, there's no fixed bundled color table
+#'   for arbitrary categories. Takes priority over HALLMARK/
+#'   `split_by_db_category` auto-detection when supplied.
 #' @param cluster_rows Controls row order/dendrogram; forwarded as-is to
 #'   [ComplexHeatmap::Heatmap()]'s own `cluster_rows`, which accepts three
 #'   different kinds of value:
@@ -93,6 +144,7 @@
 plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
                                  direction = c("both", "pos", "neg"), fdr.max = 0.05,
                                  samples = NULL, split_by_db_category = TRUE,
+                                 custom_categories = NULL,
                                  cluster_rows = TRUE, cell.size = 10, title = NULL,
                                  nes.range = NULL, title_fontsize = 14, show_row_names = TRUE,
                                  show_category = TRUE, show_heatmap_legend = TRUE, show_row_dend = TRUE) {
@@ -119,7 +171,28 @@ plot_ssgsea_heatmap <- function(result, terms = NULL, top_n = 10,
   row_labels <- terms
   left_annotation <- NULL
 
-  if (is.hallmark) {
+  if (!is.null(custom_categories)) {
+    category.lookup <- .read_custom_categories(custom_categories)
+    category <- unname(category.lookup[terms])
+    category[is.na(category)] <- ""
+    row_split <- factor(category, levels = unique(category))
+    ## unlike HALLMARK, there's no fixed bundled color table for arbitrary
+    ## categories -- auto-assign from a qualitative palette instead
+    named.levels <- setdiff(unique(category), "")
+    cat.colors <- if (length(named.levels) > 0) {
+      stats::setNames(grDevices::hcl.colors(length(named.levels), "Dark 3"), named.levels)
+    } else {
+      character(0)
+    }
+    if ("" %in% category) cat.colors[""] <- "grey90"
+    if (show_category) {
+      left_annotation <- ComplexHeatmap::rowAnnotation(
+        category = category,
+        col = list(category = cat.colors),
+        show_annotation_name = FALSE
+      )
+    }
+  } else if (is.hallmark) {
     category <- unname(hallmark_categories[terms])
     category[is.na(category)] <- ""
     row_split <- factor(category, levels = unique(category))

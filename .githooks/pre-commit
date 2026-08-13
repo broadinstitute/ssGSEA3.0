@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+## Regenerates ssGSEA3-manual.pdf (the combined reference manual, built via
+## R CMD Rd2pdf from man/*.Rd) and stages it automatically whenever a commit
+## touches R/*.R, man/*.Rd, or DESCRIPTION -- so the manual can't silently go
+## stale the way it did the first time (docs changed, devtools::document()
+## ran, but the separate Rd2pdf step was forgotten).
+##
+## This hook lives in .githooks/ (tracked), not .git/hooks/ (not tracked --
+## git doesn't run hooks from a repo's working tree by default). Enable it
+## once per clone with:
+##   git config core.hooksPath .githooks
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+changed=$(git diff --cached --name-only)
+if ! echo "$changed" | grep -qE '^(R/.*\.R|man/.*\.Rd|DESCRIPTION)$'; then
+  exit 0
+fi
+
+echo "pre-commit: R/man/DESCRIPTION changed -- regenerating ssGSEA3-manual.pdf"
+rm -f ssGSEA3-manual.pdf Rd2.log
+if ! R CMD Rd2pdf --no-preview -o ssGSEA3-manual.pdf . > /tmp/ssgsea3-manual-build.log 2>&1; then
+  echo "pre-commit: FAILED to regenerate ssGSEA3-manual.pdf -- see /tmp/ssgsea3-manual-build.log" >&2
+  exit 1
+fi
+rm -f Rd2.log
+git add ssGSEA3-manual.pdf

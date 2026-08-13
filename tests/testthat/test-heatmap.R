@@ -4,6 +4,81 @@ make_result <- function(terms, scores, fdr, sample.names = c("S1", "S2")) {
             class = "ssgsea_result")
 }
 
+test_that("plot_ssgsea_heatmap: custom_categories (named vector) splits/colors rows, unmatched terms grouped into ''", {
+  terms <- c("REACTOME_SIGNALING_BY_EGFR", "REACTOME_SIGNALING_BY_MET", "REACTOME_TELOMERE_MAINTENANCE", "REACTOME_UNMAPPED_TERM")
+  scores <- matrix(rnorm(8), nrow = 4, dimnames = list(terms, c("S1", "S2")))
+  fdr <- matrix(runif(8), nrow = 4, dimnames = list(terms, c("S1", "S2")))
+  result <- make_result(terms, scores, fdr)
+
+  categories <- c(
+    REACTOME_SIGNALING_BY_EGFR = "RTK/RAS",
+    REACTOME_SIGNALING_BY_MET = "RTK/RAS",
+    REACTOME_TELOMERE_MAINTENANCE = "DNA damage/repair"
+    ## REACTOME_UNMAPPED_TERM deliberately absent
+  )
+
+  ht <- plot_ssgsea_heatmap(result, terms = terms, custom_categories = categories)
+
+  split.col <- as.character(ht@matrix_param$row_split[[1]])
+  expect_equal(split.col, c("RTK/RAS", "RTK/RAS", "DNA damage/repair", ""))
+  expect_false(is.null(ht@left_annotation))
+  ## no prefix stripping for custom categories (unlike HALLMARK)
+  expect_equal(ht@row_names_param$labels, terms)
+})
+
+test_that("plot_ssgsea_heatmap: custom_categories accepts a file path (tab-delimited)", {
+  terms <- c("A", "B", "C")
+  scores <- matrix(rnorm(6), nrow = 3, dimnames = list(terms, c("S1", "S2")))
+  fdr <- matrix(runif(6), nrow = 3, dimnames = list(terms, c("S1", "S2")))
+  result <- make_result(terms, scores, fdr)
+
+  f <- withr::local_tempfile()
+  writeLines(c("A\tCatX", "B\tCatX", "C\tCatY"), f)
+
+  ht <- plot_ssgsea_heatmap(result, terms = terms, custom_categories = f)
+  split.col <- as.character(ht@matrix_param$row_split[[1]])
+  expect_equal(split.col, c("CatX", "CatX", "CatY"))
+})
+
+test_that("plot_ssgsea_heatmap: custom_categories accepts a comma-delimited file", {
+  terms <- c("A", "B")
+  scores <- matrix(rnorm(4), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+  fdr <- matrix(runif(4), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+  result <- make_result(terms, scores, fdr)
+
+  f <- withr::local_tempfile()
+  writeLines(c("A,CatX", "B,CatY"), f)
+
+  ht <- plot_ssgsea_heatmap(result, terms = terms, custom_categories = f)
+  split.col <- as.character(ht@matrix_param$row_split[[1]])
+  expect_equal(split.col, c("CatX", "CatY"))
+})
+
+test_that("plot_ssgsea_heatmap: custom_categories takes priority over HALLMARK auto-detection", {
+  terms <- c("HALLMARK_TNFA_SIGNALING_VIA_NFKB", "HALLMARK_HYPOXIA")
+  scores <- matrix(rnorm(4), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+  fdr <- matrix(runif(4), nrow = 2, dimnames = list(terms, c("S1", "S2")))
+  result <- make_result(terms, scores, fdr)
+
+  categories <- c(HALLMARK_TNFA_SIGNALING_VIA_NFKB = "MyCat", HALLMARK_HYPOXIA = "MyCat")
+  ht <- plot_ssgsea_heatmap(result, terms = terms, custom_categories = categories)
+
+  ## no HALLMARK_ prefix stripping -- confirms the custom-categories branch
+  ## ran instead of the HALLMARK branch
+  expect_equal(ht@row_names_param$labels, terms)
+  split.col <- as.character(ht@matrix_param$row_split[[1]])
+  expect_equal(split.col, c("MyCat", "MyCat"))
+})
+
+test_that(".read_custom_categories: errors clearly on malformed input", {
+  expect_error(.read_custom_categories("/no/such/file.txt"), "not found")
+  expect_error(.read_custom_categories(c("a", "b")), "must be a path")
+
+  f <- withr::local_tempfile()
+  writeLines(c("A\tCatX\tExtra"), f)
+  expect_error(.read_custom_categories(f), "exactly 2 columns")
+})
+
 test_that("plot_ssgsea_heatmap: HALLMARK terms are split/colored by category with prefix stripped", {
   terms <- c("HALLMARK_TNFA_SIGNALING_VIA_NFKB", "HALLMARK_HYPOXIA", "HALLMARK_E2F_TARGETS")
   scores <- matrix(c(5, -3, 2, 1, 6, -2), nrow = 3, dimnames = list(terms, c("S1", "S2")))
