@@ -18,7 +18,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height
 `ssGSEA3.0` runs single-sample Gene Set Enrichment Analysis (ssGSEA) on gene-centric
 expression data, and PTM-Signature Enrichment Analysis (PTM-SEA) on site-centric
 phosphoproteomics data scored against the directional
-[PTM signatures database (PTMsigDB)](https://proteomics.broadapps.org/ptmsigdb/).
+[PTM signatures database (PTMsigDB)](https://proteogenomics.shinyapps.io/ptmsigdb/).
 Significance is assessed via a gene-level bootstrap, replacing the gene-label
 permutation testing used by the original `ssGSEA2.0`.
 

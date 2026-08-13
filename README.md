@@ -3,7 +3,7 @@
 An installable R package for gene-centric **single sample Gene Set Enrichment
 Analysis (ssGSEA)** of expression data (e.g. mRNAs, proteins) and site-centric
 **PTM Signature Enrichment Analysis (PTM-SEA)** [1] of phosphoproteomics data
-using the [**PTM signatures database (PTMsigDB)**](https://proteomics.broadapps.org/ptmsigdb/) [1].
+using the [**PTM signatures database (PTMsigDB)**](https://proteogenomics.shinyapps.io/ptmsigdb/) [1].
 
 `ssGSEA3.0` replaces `ssGSEA2.0`'s gene-label permutation testing with a
 gene-level bootstrap for significance, fixing a known weight-dependent
@@ -14,7 +14,7 @@ side-by-side comparison against the original `ssGSEA2.0` on real data.
 
 ## Official ssGSEA codebase
 
-`ssGSEA3.0` is an update to `ssGSEA2.0`, developed alongside our [manuscript](https://www.mcponline.org/content/18/3/576.abstract) describing PTM-SEA and [PTMsigDB](https://proteomics.broadapps.org/ptmsigdb/). It is **not the official repository for ssGSEA**. For the official ssGSEA codebase, see [here](https://github.com/GSEA-MSigDB/ssGSEA-gpmodule); for the official GenePattern module, see [here](https://www.genepattern.org/modules/docs/ssGSEAProjection/4).
+`ssGSEA3.0` is an update to `ssGSEA2.0`, developed alongside our [manuscript](https://www.mcponline.org/content/18/3/576.abstract) describing PTM-SEA and [PTMsigDB](https://proteogenomics.shinyapps.io/ptmsigdb/). It is **not the official repository for ssGSEA**. For the official ssGSEA codebase, see [here](https://github.com/GSEA-MSigDB/ssGSEA-gpmodule); for the official GenePattern module, see [here](https://www.genepattern.org/modules/docs/ssGSEAProjection/4).
 
 
 ## Installation

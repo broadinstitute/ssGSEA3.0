@@ -246,7 +246,16 @@ write_ssgsea_gcts <- function(result, output.prefix, m.org, gene.names, gene.des
       if (!is.null(gene.descs.tmp)) gct.tmp@rdesc <- gene.descs.tmp
       gct.tmp@src <- gct.src
 
+      ## Windows OS supports a maximum of 259 characters in an absolute file
+      ## path -- a long signature name (or a deeply nested working directory)
+      ## can exceed this and fail to write. Truncate the filename if needed,
+      ## leaving a margin of 15 characters for cmapR::write_gct()'s own
+      ## appended dimension suffix (e.g. "_n4x50.gct" from appenddim=TRUE).
+      max.nchar.file.path <- 259
       fn <- file.path("signature_gct", make.names(sig.name))
+      abs.fn <- file.path(getwd(), fn)
+      over <- nchar(abs.fn) + 15 - max.nchar.file.path
+      if (over > 0) fn <- substr(fn, 1, nchar(fn) - over)
       cmapR::write_gct(gct.tmp, ofile = fn, appenddim = TRUE)
       written <- c(written, fn)
     }

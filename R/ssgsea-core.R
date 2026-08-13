@@ -68,18 +68,26 @@ gsea_score <- function(ordered.gene.list, gene.set2, weight, n.rows, correl.type
   if (weight == 0) {
     correl.vector <- rep(1, n.rows)
   } else if (weight > 0) {
-    ## NOTE: the original permutation-based code shuffled gene labels here,
-    ## which breaks gene-gene correlation and understates the null's spread
-    ## when weight != 0 -- see bootstrap_es_pvalue() for how this is corrected.
+    ## NOTE: the original permutation-based code shuffled gene labels (i.e.
+    ## reindexed correl.vector by ordered.gene.list) here, which breaks
+    ## gene-gene correlation structure (makes genes independent). When
+    ## weight != 0, this results in a null distribution that is far too
+    ## narrow, making even random biological signals look "statistically
+    ## significant" (p ~ 0) -- an effect that's even more acute when a few
+    ## genes have high expression, since any random gene set that happens to
+    ## include them by chance gets a huge boost to its ES. To counter this,
+    ## the bootstrap approach instead calculates a distribution over the
+    ## observed ES and uses that to calculate a p-value -- see
+    ## bootstrap_es_pvalue().
     if (correl.type == "rank") {
-      correl.vector <- data.expr
+      correl.vector <- data.expr  # original code: correl.vector <- data.expr[ordered.gene.list]
     } else if (correl.type == "symm.rank") {
-      correl.vector <- data.expr
+      correl.vector <- data.expr  # original code: correl.vector <- data.expr[ordered.gene.list]
       correl.vector <- ifelse(correl.vector > correl.vector[ceiling(n.rows / 2)],
                                correl.vector,
                                correl.vector + correl.vector - correl.vector[ceiling(n.rows / 2)])
     } else if (correl.type == "z.score") {
-      x <- data.expr
+      x <- data.expr  # original code: x <- data.expr[ordered.gene.list]
       correl.vector <- (x - mean(x)) / stats::sd(x)
     }
   }
@@ -238,6 +246,10 @@ gsea_score <- function(ordered.gene.list, gene.set2, weight, n.rows, correl.type
 #'   `gene.set.direction` (`NULL`, or labels aligned with `gene.set2`).
 #' @keywords internal
 .align_geneset_to_direction <- function(gene.set, gene.set.direction, gene.names) {
+  ## NOTE: must be lapply(), not sapply() -- sapply() silently simplifies to
+  ## a flat vector/matrix whenever every member has the same match count
+  ## (very common, e.g. all exactly 1 match), which corrupts the per-member
+  ## lengths() below.
   positions <- lapply(gene.set, function(x) which(gene.names == x))
   gene.set2 <- as.numeric(unlist(positions))
   if (is.null(gene.set.direction)) {
@@ -280,6 +292,11 @@ gsea_score <- function(ordered.gene.list, gene.set2, weight, n.rows, correl.type
   }, numeric(1))
 }
 
+## Without this, a directional gene set that clears raw min.overlap but has
+## no usable up/down split (gsea_score()'s lone-member rule zeroes both
+## sides) could look "scored" (fake ES=0/p=1) in every sample yet have an
+## empty overlap union, crashing the per-signature GCT export downstream
+## (subscript out of bounds).
 #' Record overlap diagnostics for a sample that can't be scored
 #'
 #' Shared by [project_geneset()]'s two "can't score this sample" cases:

@@ -49,7 +49,7 @@ p_load(magrittr)
 ##    2. Subramanian, A., Tamayo, P., Mootha, V. K., Mukherjee, S., Ebert, B. L., Gillette, M. A., et al. (2005).
 ##       Gene set enrichment analysis: a knowledge-based approach for interpreting genome-wide expression profiles.
 ##       Proceedings of the National Academy of Sciences of the United States of America, 102(43), 15545–15550.
-ssGSEA2 <- function (
+ssGSEA3 <- function (
                      input.ds,                      ## input data file in gct format, first column (Name) must contain gene symbols
                      output.prefix,                 ## prefix used for output tables
                      gene.set.databases=gsea.dbs,   ## list of genesets (in gmt format) to evaluate enrichment on

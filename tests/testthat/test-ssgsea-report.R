@@ -111,6 +111,34 @@ test_that("write_ssgsea_gcts: writes scores/pvalues/fdr/combined + per-signature
   expect_setequal(sig.gct@rid, c("G1", "G2")) ## only signature members, not G3
 })
 
+test_that("write_ssgsea_gcts: a very long signature name is truncated instead of overflowing Windows' 259-char path limit", {
+  long.name <- paste(c("GS1_", strrep("X", 280)), collapse = "")
+  tmp <- setNames(
+    list(make_tmp_entry(c(1, 2), c(1.5, 2.5), c(0.01, 0.02), c("G1|G2", "G1|G2"), c(2, 2), c(100, 100))),
+    long.name
+  )
+  result <- build_ssgsea_result(tmp, long.name, "desc", 2, NULL, setNames(list(c("G1", "G2")), long.name),
+                                 c("S1", "S2"), data.frame(row.names = c("S1", "S2")), output.score.type = "NES")
+
+  m.org <- matrix(c(1, 2, 3, 10, 20, 30), nrow = 3, dimnames = list(c("G1", "G2", "G3"), c("S1", "S2")))
+  gene.descs <- data.frame(row.names = rownames(m.org))
+
+  old.wd <- getwd()
+  wd <- withr::local_tempdir()
+  setwd(wd)
+  on.exit(setwd(old.wd), add = TRUE)
+
+  ## should not error despite the ~284-char signature name, and the written
+  ## path should respect the 259-char Windows limit (with the 15-char margin
+  ## write_ssgsea_gcts() reserves for cmapR's appended dimension suffix)
+  written <- write_ssgsea_gcts(result, output.prefix = "out", m.org = m.org, gene.names = rownames(m.org),
+                                gene.descs = gene.descs, export.signat.gct = TRUE, appenddim = TRUE)
+
+  sig.file <- dir("signature_gct", full.names = TRUE)[1]
+  expect_true(file.exists(sig.file))
+  expect_lte(nchar(file.path(getwd(), sig.file)), 259)
+})
+
 test_that("write_ssgsea_gcts: a single surviving gene set (1 data row, >1 rdesc cols) round-trips via read_gct_safe", {
   tmp <- list(GS1 = make_tmp_entry(c(1, 2), c(1.5, 2.5), c(0.01, 0.02), c("G1|G2", "G1|G2"), c(2, 2), c(100, 100)))
   result <- build_ssgsea_result(tmp, "GS1", "desc", 2, NULL, list(GS1 = c("G1", "G2")),

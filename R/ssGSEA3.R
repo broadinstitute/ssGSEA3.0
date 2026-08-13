@@ -1,3 +1,16 @@
+## 20161013 modified by Karsten Krug
+## adapt the ssGSEA code to:
+##   1) work with site specific signature sets
+##   2) take directionality of regulation into account
+##   3) multi-threaded using 'doParallel'
+##   4) handle missing values
+##   5) cmapR functions for data import/export
+##   6) produce more extensive output, e.g. dataset/database overlaps, etc.
+## 20260415 edited by D R Mani
+##   change permutation testing to bootstrap p-value estimation
+##   see bootstrap_es_pvalue() (R/ssgsea-bootstrap.R) and the "NOTE"s in
+##   gsea_score() (R/ssgsea-core.R) for details
+
 #' Run one gene set through every sample, dispatching parallel or serial
 #'
 #' @importFrom foreach %dopar%
@@ -128,6 +141,18 @@ ssGSEA3 <- function(input.ds,
                      seed = NULL,
                      verbose = TRUE,
                      log.file = "run.log") {
+  ## For results similar to the Java version, use weight=0; when weight==0,
+  ## sample.norm.type and correl.type do not matter. When weight > 0, the
+  ## combination of sample.norm.type and correl.type dictates how the
+  ## expression values in input.ds are transformed to obtain the score --
+  ## use this setting with care, since the transformations can skew scores
+  ## towards +ve or -ve values:
+  ##   - sample.norm.type=="none" uses actual expression values; combined
+  ##     with correl.type=="rank", genes are weighted by actual values
+  ##   - sample.norm.type=="rank" weights genes proportional to rank
+  ##   - sample.norm.type=="log" can be used for log-transforming input data
+  ##   - correl.type=="z.score" standardizes the (normalized) input values
+  ##     before using them to calculate scores
   sample.norm.type <- match.arg(sample.norm.type)
   statistic <- match.arg(statistic)
   output.score.type <- match.arg(output.score.type)

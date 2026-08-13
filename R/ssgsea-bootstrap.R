@@ -32,16 +32,34 @@ bootstrap_es_pvalue <- function(obs.es, boot.es) {
   B <- length(boot.es)
   if (B == 0) return(list(NES = obs.es, p.value = 1))
 
+  ## The naive two-sided bootstrap p-value formula is:
+  ##   p = (1/B) * sum_i I( |ES*_i - ES_hat| >= |ES_hat - 0| )
+  ## where ES*_i is the i-th bootstrap replicate's ES, ES_hat is the
+  ## observed ES, and I(.) is the indicator function. This is biased
+  ## (under-dispersed, too many p ~ 0) because it (i) assumes
+  ## mean(ES*_i) == ES_hat and (ii) treats the null's SD as identical to
+  ## the bootstrap distribution's SD. The gold-standard fix is a
+  ## "studentized"/bootstrap-t correction, which isn't tractable here since
+  ## it would need the standard error of each ES*_i, i.e. a second level of
+  ## bootstrapping (O(n^2)). Instead we recenter the bootstrap ES
+  ## distribution around zero (mimicking a permutation-style null) and
+  ## compute a z-score of the observed ES against the bootstrap SD -- akin
+  ## to a z-test with the SD estimated via bootstrap sampling.
   boot.es <- boot.es - mean(boot.es)
   se_boot <- stats::sd(boot.es)
   z_score <- obs.es / se_boot
 
   if (obs.es >= 0) {
+    ## NES: same normalization convention as permutation-based ssGSEA (ES
+    ## divided by the mean of same-sign null values), so NES stays
+    ## comparable in magnitude/interpretation to the original method's.
     pos.phi <- boot.es[boot.es >= 0]
     pos.m <- if (length(pos.phi) == 0) 0.5 else mean(pos.phi)
     NES <- obs.es / pos.m
     p.value <- 2 * stats::pnorm(z_score, lower.tail = FALSE)
   } else {
+    ## NES: same normalization convention as permutation-based ssGSEA (mean
+    ## of same-sign bootstrap ES), mirrored for the negative-ES case.
     neg.phi <- boot.es[boot.es < 0]
     neg.m <- if (length(neg.phi) == 0) 0.5 else mean(neg.phi)
     NES <- obs.es / abs(neg.m)

@@ -1,6 +1,6 @@
 Package: ssGSEA3
 Title: Single-Sample and Site-Centric Gene Set Enrichment Analysis (ssGSEA/PTM-SEA)
-Version: 0.1.0
+Version: 1.0.0
 Authors@R: c(
     person("Natalie", "Clark", , "nclark@broadinstitute.org", role = c("aut", "cre")),
     person("Karsten", "Krug", role = "aut"),
