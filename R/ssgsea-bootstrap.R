@@ -32,7 +32,8 @@ bootstrap_es_pvalue <- function(obs.es, boot.es) {
   B <- length(boot.es)
   if (B == 0) return(list(NES = obs.es, p.value = 1))
 
-  ## The naive two-sided bootstrap p-value formula is:
+  ## BOOTSTRAP P-VALUE CALCULATION via shifted null
+  ## The two-sided bootstrap p-value formula is:
   ##   p = (1/B) * sum_i I( |ES*_i - ES_hat| >= |ES_hat - 0| )
   ## where ES*_i is the i-th bootstrap replicate's ES, ES_hat is the
   ## observed ES, and I(.) is the indicator function. This is biased
@@ -43,8 +44,14 @@ bootstrap_es_pvalue <- function(obs.es, boot.es) {
   ## it would need the standard error of each ES*_i, i.e. a second level of
   ## bootstrapping (O(n^2)). Instead we recenter the bootstrap ES
   ## distribution around zero (mimicking a permutation-style null) and
-  ## compute a z-score of the observed ES against the bootstrap SD -- akin
-  ## to a z-test with the SD estimated via bootstrap sampling.
+  ## compute a z-score of the observed ES against the bootstrap SD:
+  ##   ES_null = ES*_i - mean (ES*_i)    [Efron & Tibshirani, 1993. Chapter 16]
+  ##   se_boot = std_dev(ES*_i)
+  ##   ES_hat_z = (ES_hat - ES_0) / se_boot   [assuming ES_0=0]
+  ##   p_value = 2 * (1 - CDF_Normal(|ES_hat_z|))   [2 sided]
+  ##      (or use 1-sided / directional approach as in code below)
+  ## This is akin to a z-test with the SD estimated via bootstrap sampling.
+  ## [MacKinnon, 2002; Efron, 1982]
   boot.es <- boot.es - mean(boot.es)
   se_boot <- stats::sd(boot.es)
   z_score <- obs.es / se_boot
