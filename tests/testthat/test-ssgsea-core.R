@@ -33,6 +33,55 @@ test_that(".align_geneset_to_direction: non-directional (NULL) case is an unchan
   expect_null(aligned$gene.set.direction)
 })
 
+test_that(".align_geneset_to_direction: a duplicated gene.set member repeats its own position block", {
+  ## a malformed/duplicated GMT entry -- match()-based lookups only find the
+  ## *first* occurrence of a value, so a naive rewrite would silently drop
+  ## the second occurrence's position block instead of repeating it, unlike
+  ## the original per-element lapply() (each occurrence gets its own
+  ## which() call, so duplicates in gene.set correctly produce duplicate
+  ## blocks)
+  gene.names <- paste0("G", 1:5)
+  gene.set <- c("G1", "G2", "G1") ## G1 listed twice
+  gs.dir <- c("u", "d", "d")      ## second "G1" occurrence has a different label than the first
+
+  aligned <- .align_geneset_to_direction(gene.set, gs.dir, gene.names)
+
+  expect_equal(aligned$gene.set2, c(1, 2, 1))
+  expect_equal(aligned$gene.set.direction, c("u", "d", "d"))
+})
+
+test_that(".align_geneset_to_direction: matches a naive per-member which() reference across randomized trials", {
+  ## regression test for the match()-based rewrite (added for performance --
+  ## see the function's own comment) -- compares against the original,
+  ## unoptimized approach directly (not just hand-picked cases) across many
+  ## randomized gene.names/gene.set/direction combinations, including
+  ## duplicate gene.set members, duplicate/multi-probe gene.names, and
+  ## absent members
+  naive_align <- function(gene.set, gene.set.direction, gene.names) {
+    positions <- lapply(gene.set, function(x) which(gene.names == x))
+    gene.set2 <- as.numeric(unlist(positions))
+    if (is.null(gene.set.direction)) return(list(gene.set2 = gene.set2, gene.set.direction = NULL))
+    list(gene.set2 = gene.set2, gene.set.direction = rep(gene.set.direction, lengths(positions)))
+  }
+
+  set.seed(20260814)
+  for (i in 1:200) {
+    n.rows <- sample(5:100, 1)
+    n.unique <- sample(2:n.rows, 1)
+    gene.names <- sample(paste0("G", seq_len(n.unique)), n.rows, replace = TRUE)
+    gs.size <- sample(1:15, 1)
+    pool <- unique(c(gene.names, paste0("ABSENT", 1:3)))
+    gene.set <- sample(pool, gs.size, replace = TRUE) ## allows duplicate members
+    gs.dir <- if (sample(c(TRUE, FALSE), 1)) sample(c("u", "d"), gs.size, replace = TRUE) else NULL
+
+    expected <- naive_align(gene.set, gs.dir, gene.names)
+    actual <- .align_geneset_to_direction(gene.set, gs.dir, gene.names)
+
+    expect_identical(actual$gene.set2, expected$gene.set2, info = paste("trial", i))
+    expect_identical(actual$gene.set.direction, expected$gene.set.direction, info = paste("trial", i))
+  }
+})
+
 test_that("project_geneset: a directional gene set with a partially-absent member no longer crashes", {
   gene.names <- paste0("G", 1:20)
   data.expr <- 20:1
