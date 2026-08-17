@@ -237,7 +237,14 @@ test_that("ssGSEA3: seed reproducibility holds under par=TRUE too, and is not ti
   genes <- paste0("G", 1:30)
   mat <- matrix(rnorm(60, 20, 5), ncol = 2, dimnames = list(genes, c("S1", "S2")))
   gct.path <- make_test_gct(mat, "input.gct")
-  gmt.path <- make_test_gmt(list(GS_A = genes[1:10]), "sets.gmt")
+  ## Many gene sets (more than any realistic worker count), not just one --
+  ## a single gene set can't expose scheduling-dependent RNG assignment,
+  ## since there's no worker/task ambiguity when there's only one task.
+  gene.sets <- setNames(
+    lapply(1:12, function(i) sample(genes, 5)),
+    paste0("GS_", 1:12)
+  )
+  gmt.path <- make_test_gmt(gene.sets, "sets.gmt")
 
   run <- function(par, seed) {
     ssGSEA3(gct.path, output.prefix = tempfile(), gene.set.databases = gmt.path,

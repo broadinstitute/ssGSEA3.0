@@ -37,10 +37,38 @@
     cl <- parallel::makeCluster(max(1, parallel::detectCores() - spare.cores))
     on.exit(parallel::stopCluster(cl))
     doParallel::registerDoParallel(cl)
-    if (!is.null(seed)) parallel::clusterSetRNGStream(cl, seed)
+
+    run_task <- run_one
+    if (!is.null(seed)) {
+      ## foreach's default scheduling assigns gene sets to workers
+      ## dynamically (whichever worker is free next runs the next gene
+      ## set), so clusterSetRNGStream()'s per-*worker* substreams would
+      ## make results depend on scheduling timing, not just the seed.
+      ## Instead, generate one independent L'Ecuyer-CMRG substream per
+      ## gene set up front, keyed by gs.i -- so which worker happens to
+      ## run a given gene set no longer affects its result.
+      old.kind <- RNGkind()[1]
+      old.seed <- if (exists(".Random.seed", envir = .GlobalEnv)) get(".Random.seed", envir = .GlobalEnv) else NULL
+      on.exit({
+        RNGkind(old.kind)
+        if (!is.null(old.seed)) assign(".Random.seed", old.seed, envir = .GlobalEnv)
+      }, add = TRUE)
+      RNGkind("L'Ecuyer-CMRG")
+      set.seed(seed)
+      gs.stream <- vector("list", N.gs)
+      state <- .Random.seed
+      for (i in seq_len(N.gs)) {
+        gs.stream[[i]] <- state
+        state <- parallel::nextRNGStream(state)
+      }
+      run_task <- function(gs.i) {
+        assign(".Random.seed", gs.stream[[gs.i]], envir = .GlobalEnv)
+        run_one(gs.i)
+      }
+    }
 
     gs.i <- NULL ## appease R CMD check re: foreach's NSE binding
-    tmp <- foreach::foreach(gs.i = seq_len(N.gs), .packages = "doParallel") %dopar% run_one(gs.i)
+    tmp <- foreach::foreach(gs.i = seq_len(N.gs), .packages = "doParallel") %dopar% run_task(gs.i)
   } else {
     if (!is.null(seed)) set.seed(seed)
     if (verbose) message("Scoring ", N.gs, " gene sets...")

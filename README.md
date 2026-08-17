@@ -85,13 +85,17 @@ PTM-Signature Enrichment Analysis (PTM-SEA) is a modified version of ssGSEA to p
 
 ## Example datasets
 
-`ssGSEA3.0` bundles two worked examples in `example/` (used by the package
+`ssGSEA3.0` bundles three worked examples in `example/` (used by the package
 vignette):
 
-- **Ordinary ssGSEA**: a PANOPLY LUAD tumor NMF factorization
+- **Ordinary ssGSEA (HALLMARK)**: a PANOPLY LUAD tumor NMF factorization
   (`LUAD_matrix_W_combined_signed_gc.gct`) against the MSigDB HALLMARK
   collection (`db/msigdb/h.all.v7.0.symbols.gmt`); these results are shown in
   Figure 1 of Satpathy et al. [8].
+- **Ordinary ssGSEA (REACTOME)**: the same LUAD NMF factorization scored
+  against a REACTOME subset (`db/msigdb/reactome_subset.gmt`) -- a much
+  larger, size/function-heterogeneous database, contrasting with HALLMARK's
+  small, curated gene sets.
 - **PTM-SEA**: a site-centric phosphoproteomics PI3K-inhibitor perturbation
   dataset, based on Supplemental Table 6 in [1]
   (`PI3K_pert_logP_n2x23936.gct`), against PTMsigDB v2.0.0

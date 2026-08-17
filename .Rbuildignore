@@ -10,3 +10,5 @@
 ^preprocess_gct-cli\.R$
 ^ssgsea-cli\.R$
 ^\.claude$
+^doc$
+^Meta$

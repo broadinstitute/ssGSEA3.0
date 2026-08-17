@@ -101,7 +101,7 @@ res <- ssGSEA3(
 ```
 
 ```{r luad-load}
-## the call above takes ~30 min at the default nperm=1000 -- loading its
+## the call above takes ~1 min at the default nperm=1000 -- loading its
 ## precomputed output here keeps this vignette's own build fast, and keeps
 ## the displayed results consistent with the full-nperm comparison below
 ## (rather than a faster-but-different reduced-nperm run)
@@ -206,8 +206,8 @@ res.reactome <- ssGSEA3(
 ```
 
 ```{r luad-reactome-load}
-## as above, loading the precomputed output instead of re-running the ~30
-## min scoring call live -- restricted to the 1,167 gene sets common to
+## as above, loading the precomputed output instead of re-running the
+## ~18 min scoring call live -- restricted to the 1,167 gene sets common to
 ## both engines being compared below
 res.reactome <- readRDS(system.file(
   "extdata", "luad_reactome_ssgsea3_result.rds", package = "ssGSEA3"
@@ -333,7 +333,7 @@ res.ptmsea <- ssGSEA3(
 
 ```{r ptmsea-load}
 ## as above, loading the precomputed (nperm=1000) output instead of
-## re-running the ~3 hour scoring call live
+## re-running the ~9 min scoring call live
 res.ptmsea <- readRDS(system.file("extdata", "pi3k_ssgsea3_result.rds", package = "ssGSEA3"))
 res.ptmsea
 ```
@@ -354,8 +354,8 @@ Unlike the LUAD comparison above, `weight = 0` is used here deliberately, to
 isolate the bootstrap-vs-permutation effect on directional scoring from the
 separate weight-dependent issue that comparison demonstrated. The results
 below use the default `nperm = 1000` (run outside this vignette, since a full
-comparison run against the original, unmodified `ssGSEA2.0` code takes
-several hours and depends on software not part of this package):
+comparison run against the original, unmodified `ssGSEA2.0` code depends on
+software not part of this package):
 
 ```{r ptmsea-comparison}
 cmp <- readRDS(system.file(
