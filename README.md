@@ -5,11 +5,12 @@ Analysis (ssGSEA)** of expression data (e.g. mRNAs, proteins) and site-centric
 **PTM Signature Enrichment Analysis (PTM-SEA)** [1] of phosphoproteomics data
 using the [**PTM signatures database (PTMsigDB)**](https://proteogenomics.shinyapps.io/ptmsigdb/) [1].
 
-`ssGSEA3.0` replaces `ssGSEA2.0`'s gene-label permutation testing with a
-gene-level bootstrap for significance, fixing a known weight-dependent
-calibration issue in the original approach without losing statistical power
--- see `vignette("ssgsea2-vs-ssgsea3-comparison")` for the full story and a
-side-by-side comparison against the original `ssGSEA2.0` on real data.
+`ssGSEA3.0` replaces `ssGSEA2.0`'s gene-label permutation testing with
+feature-level (gene- or site-level) bootstrap resampling for significance.
+This fixes a known weight-dependent calibration issue in the original approach
+while keeping more detection power than a direct fix to the permutation -- see
+`vignette("ssgsea2-vs-ssgsea3-comparison")` for the full story and a
+comparison of `ssGSEA2.0`, its fixed variant, and `ssGSEA3.0` on real data.
 
 
 ## Official ssGSEA codebase
@@ -47,14 +48,18 @@ ht <- plot_ssgsea_heatmap(result)
 ComplexHeatmap::draw(ht)
 ```
 
-See `vignette("ssgsea2-vs-ssgsea3-comparison")` for two full worked examples
-(ordinary ssGSEA on tumor expression data, and directional PTM-SEA on
-phosphoproteomics data) using the datasets bundled in `example/`.
+See `vignette("ssgsea2-vs-ssgsea3-comparison")` for three full worked examples
+(ordinary ssGSEA on tumor NMF factors against HALLMARK and REACTOME, and
+directional PTM-SEA on phosphoproteomics data) using the datasets installed
+with the package in `example/`. They show the exact results reported in the
+ssGSEA3.0 manuscript; re-running those analyses with the current package gives slightly
+different numbers due to bootstrap randomness alone (see the vignette for
+why).
 
 
 ## ssGSEA
 
-This is an updated version of the original ssGSEA [2,3] R-implementation. Depending on the input dataset and chosen database (gene sets or PTM signatures), the software performs either ssGSEA or PTM-SEA, respectively. The Molecular Signatures Database ([MSigDB](http://software.broadinstitute.org/gsea/msigdb/)) [4] provides a large collection of curated gene sets. Gene sets are stored as plain text in  [GMT](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GMT:_Gene_Matrix_Transposed_file_format_.28.2A.gmt.29) format. A current version of MSigDB gene set collections can be found in the ```db/msigdb``` subfolder. MSigDB gene sets are realeased under [Creative Commons Attribution 4.0 International License](http://software.broadinstitute.org/gsea/msigdb_license_terms.jsp). The license terms can be found in the ```db/msigdb``` folder.
+This is an updated version of the original ssGSEA [2,3] R-implementation. Depending on the input dataset and chosen database (gene sets or PTM signatures), the software performs either ssGSEA or PTM-SEA, respectively. The Molecular Signatures Database ([MSigDB](http://software.broadinstitute.org/gsea/msigdb/)) [4] provides a large collection of curated gene sets. Gene sets are stored as plain text in  [GMT](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GMT:_Gene_Matrix_Transposed_file_format_.28.2A.gmt.29) format. A current version of MSigDB gene set collections can be found in the ```db/msigdb``` subfolder of this repository (not installed with the package). MSigDB gene sets are realeased under [Creative Commons Attribution 4.0 International License](http://software.broadinstitute.org/gsea/msigdb_license_terms.jsp). The license terms can be found in the ```db/msigdb``` folder.
 
 File formats supported are Gene Cluster Text [GCT v1.2](https://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats#GCT:_Gene_Cluster_Text_file_format_.28.2A.gct.29) or [GCT v1.3](https://clue.io/connectopedia/gct_format) files. [Morpheus](https://software.broadinstitute.org/morpheus/) provides a convenient way to convert your data tables into GCT format.
 
@@ -85,21 +90,26 @@ PTM-Signature Enrichment Analysis (PTM-SEA) is a modified version of ssGSEA to p
 
 ## Example datasets
 
-`ssGSEA3.0` bundles three worked examples in `example/` (used by the package
-vignette):
+`ssGSEA3.0` installs three worked examples in `example/` (`inst/example/` in
+this repository; `system.file("example", package = "ssGSEA3")` once installed),
+used by the package vignette:
 
 - **Ordinary ssGSEA (HALLMARK)**: a PANOPLY LUAD tumor NMF factorization
   (`LUAD_matrix_W_combined_signed_gc.gct`) against the MSigDB HALLMARK
-  collection (`db/msigdb/h.all.v7.0.symbols.gmt`); these results are shown in
-  Figure 1 of Satpathy et al. [8].
+  collection (`h.all.v6.2.symbols.gmt`); these results are shown in Figure 1
+  of Satpathy et al. [8].
 - **Ordinary ssGSEA (REACTOME)**: the same LUAD NMF factorization scored
-  against a REACTOME subset (`db/msigdb/reactome_subset.gmt`) -- a much
-  larger, size/function-heterogeneous database, contrasting with HALLMARK's
-  small, curated gene sets.
+  against a REACTOME subset (`reactome_subset.gmt`) -- a much larger,
+  size/function-heterogeneous database, contrasting with HALLMARK's small,
+  curated gene sets.
 - **PTM-SEA**: a site-centric phosphoproteomics PI3K-inhibitor perturbation
   dataset, based on Supplemental Table 6 in [1]
   (`PI3K_pert_logP_n2x23936.gct`), against PTMsigDB v2.0.0
   (`ptm.sig.db.all.flanking.human.v2.0.0.gmt`).
+
+Only these example files are installed with the package; the full MSigDB and
+PTMsigDB collections stay in this repository's `db/` folder. The MSigDB license
+for the two MSigDB files is installed alongside them as `msigdb_license.txt`.
 
 
 ## Legacy standalone scripts
@@ -123,8 +133,8 @@ Original code written by Pablo Tamayo. Adapted with additional modifications by 
 - basic error handling
 - improvements in runtime performance
 - additional output files like rank plots and parameter files
-- replacement of gene-label permutation testing with gene-level bootstrap
-  resampling for significance (see `vignette("ssgsea2-vs-ssgsea3-comparison")`)
+- replacement of gene-label permutation testing with feature-level (gene- or
+  site-level) bootstrap resampling for significance (see `vignette("ssgsea2-vs-ssgsea3-comparison")`)
 
 
 ## License

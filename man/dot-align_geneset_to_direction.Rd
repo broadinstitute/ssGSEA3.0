@@ -33,7 +33,7 @@ of a too-short position vector (returning \code{NA}s that later blow up a
 \code{min()}/\code{max()} call) or silently pair positions with the wrong member's
 direction. This is what made a resampled subset of \code{gene.names} (as in
 \code{\link[=.resample_bootstrap_es]{.resample_bootstrap_es()}}) unsafe with the original, un-aligned
-construction -- gene-level bootstrap resampling can drop individual gene
+construction -- feature-level bootstrap resampling can drop individual gene
 set members from a given replicate, which ordinary permutation (which
 never drops a gene, only reshuffles all of them) cannot.
 }

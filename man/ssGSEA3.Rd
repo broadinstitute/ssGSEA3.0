@@ -49,7 +49,7 @@ see \code{correl.type}.}
 and p-value) or \code{"ES"} (raw enrichment score only, no bootstrapping,
 \code{p.value} is always \code{1}).}
 
-\item{nperm}{Number of gene-level bootstrap replicates (ignored when
+\item{nperm}{Number of feature-level bootstrap replicates (ignored when
 \code{output.score.type = "ES"}).}
 
 \item{min.overlap}{Minimum number of a gene set's members that must be
@@ -94,7 +94,7 @@ the same information is also written to \verb{<output.prefix>-scores.gct},
 Scores every sample in \code{input.ds} against every gene set in
 \code{gene.set.databases}, using a per-gene-set running-sum enrichment
 statistic (Subramanian et al. 2005; Abazeed et al. 2013) and, for
-\code{output.score.type = "NES"}, a gene-level bootstrap to obtain a
+\code{output.score.type = "NES"}, a feature-level (gene- or site-level) bootstrap to obtain a
 normalized enrichment score and p-value (see \code{\link[=bootstrap_es_pvalue]{bootstrap_es_pvalue()}} for
 why this replaced the original permutation-based approach).
 }
@@ -112,7 +112,7 @@ code essentially unchanged since directionality support was added to the
 original ssGSEA2.0 in 2016, but it could never actually manifest there:
 ssGSEA2.0's gene-label \emph{permutation} reorders every gene without ever
 dropping one, so its (fixed, computed-once) position/direction vectors
-never desync. It's specifically ssGSEA3.0's gene-level bootstrap
+never desync. It's specifically ssGSEA3.0's feature-level bootstrap
 resampling \emph{with replacement} -- which can and does drop individual
 genes from a given replicate -- that exposes it; this is a real
 consequence of the bootstrap rework, not a latent defect ssGSEA2.0 use

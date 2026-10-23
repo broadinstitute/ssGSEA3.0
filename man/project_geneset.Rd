@@ -59,7 +59,7 @@ the rank-plot diagnostic).
 \description{
 The per-gene-set unit of work: for each sample column, handles missing
 values, checks minimum overlap, computes the observed enrichment score,
-and (when \code{nperm > 0}) runs the gene-level bootstrap to obtain an NES and
+and (when \code{nperm > 0}) runs the feature-level bootstrap to obtain an NES and
 p-value via \code{\link[=bootstrap_es_pvalue]{bootstrap_es_pvalue()}}.
 }
 \details{

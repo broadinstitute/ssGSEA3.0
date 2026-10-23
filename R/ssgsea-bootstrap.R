@@ -1,6 +1,6 @@
 #' Bootstrap-based p-value and normalized enrichment score
 #'
-#' Converts an observed enrichment score plus a vector of gene-level bootstrap
+#' Converts an observed enrichment score plus a vector of feature-level bootstrap
 #' replicate enrichment scores into a normalized enrichment score (NES) and a
 #' two-sided p-value, using a z-score approximation (see Details).
 #'

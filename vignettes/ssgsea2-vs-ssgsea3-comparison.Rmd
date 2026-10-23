@@ -1,10 +1,10 @@
 ---
-title: "ssGSEA3.0: from permutation testing to gene-level bootstrap resampling"
+title: "ssGSEA3.0: from permutation testing to feature-level bootstrap resampling"
 output:
   rmarkdown::html_vignette:
     css: ssgsea3-vignette-style.css
 vignette: >
-  %\VignetteIndexEntry{ssGSEA3.0: from permutation testing to gene-level bootstrap resampling}
+  %\VignetteIndexEntry{ssGSEA3.0: from permutation testing to feature-level bootstrap resampling}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -19,434 +19,373 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height
 expression data, and PTM-Signature Enrichment Analysis (PTM-SEA) on site-centric
 phosphoproteomics data scored against the directional
 [PTM signatures database (PTMsigDB)](https://proteogenomics.shinyapps.io/ptmsigdb/).
-Significance is assessed via a gene-level bootstrap, replacing the gene-label
-permutation testing used by the original `ssGSEA2.0`.
+Significance is assessed by feature-level (gene- or site-level) bootstrap
+resampling, replacing the gene-label permutation testing used by `ssGSEA2.0`.
 
-This vignette:
+This vignette reproduces the biological comparisons from the ssGSEA3.0
+manuscript (Clark and Mani), using the same three implementations throughout:
 
-1. explains *why* that replacement happened,
-2. walks through two ordinary ssGSEA analyses on the same tumor NMF factors --
-   against the curated HALLMARK collection, and against the much larger and more
-   functionally diverse REACTOME pathway collection -- and
-3. walks through a directional PTM-SEA analysis (a phosphoproteomics perturbation
-   dataset vs. PTMsigDB), comparing the result to the original `ssGSEA2.0`.
+- **ssGSEA2.0-orig** -- `ssGSEA2.0` as published (Krug et al. 2019);
+- **ssGSEA2.0-fixed** -- `ssGSEA2.0` with its correlation-vector reordering
+  fixed, available on the
+  [`ssGSEA2.0-fixed` branch](https://github.com/broadinstitute/ssGSEA3.0/tree/ssGSEA2.0-fixed)
+  of this repository;
+- **ssGSEA3.0** -- this package.
+
+It covers:
+
+1. *why* the bootstrap replaced permutation,
+2. ssGSEA on lung adenocarcinoma (LUAD) NMF factors against the MSigDB HALLMARK
+   collection (manuscript Supplementary Figure 1),
+3. the same factors against the larger, more diverse REACTOME collection
+   (manuscript Figure 2), and
+4. directional PTM-SEA on a PI3Kα-inhibitor phosphoproteomics dataset
+   (manuscript Figure 3).
 
 ```{r setup, message = FALSE}
 library(ssGSEA3)
 ```
 
+### About the bundled results
+
+The results loaded below, bundled with this package in `inst/extdata/`, are the
+exact outputs reported in the manuscript and its Supplementary Tables 1-3.
+If you run the `ssGSEA3()` calls shown below with the current package, your
+numbers will differ slightly from these, and **the differences are due to
+bootstrap randomness alone**. The scoring and significance algorithm is the same.
+
+The manuscript's ssGSEA3.0 runs were made before commit `7303e16`. Before that
+commit, `par = TRUE` gave each parallel worker its own random-number stream,
+and which gene sets a worker scored depended on timing, so a seed did not fix
+which random draws each gene set's bootstrap used. The current package gives
+every gene set its own stream, so `seed = 42` now reproduces the same results
+on every run. Those results are a different random draw from the manuscript's,
+so counts near the significance threshold shift slightly (for example, 805
+rather than 808 significant REACTOME gene sets at `weight = 1`), and the
+conclusions are unchanged. `ssGSEA2.0` has no seed parameter, so its results
+also vary slightly from run to run for the same reason.
+
 ## Why bootstrap instead of permutation?
 
-### A known problem with weighted scoring under permutation
+### Weighted scoring under permutation is miscalibrated
 
-`ssGSEA2.0`'s significance testing permuted gene labels to build a null distribution
-for each gene set's enrichment score. This works cleanly when every gene contributes
-equally to the score (`weight = 0`), but is known to produce badly miscalibrated
-p-values whenever the score is weighted by actual expression magnitude
-(`weight > 0`) -- documented as GitHub issue #45 against the original `ssGSEA2.0`
-repository. Testing purely random, biologically meaningless gene sets at
-`weight = 0.75` gave a mean p-value of about 0.001 (i.e. almost always called
-"significant") instead of the ~0.5 expected under a true null.
+ssGSEA computes a running-sum enrichment score in which each feature's
+contribution is scaled by a `weight` parameter: `weight = 0` is a rank-only
+score, and `weight > 0` favors features with larger expression magnitude.
+`ssGSEA2.0-orig` assesses significance by permuting gene labels, and in doing so
+reorders each feature's weight (the "correlation vector") together with its
+rank. For `weight > 0` this makes highly expressed features drive the permuted
+scores, giving a null distribution that is too narrow and inflating false
+positives (GitHub issue #45 against `ssGSEA2.0`).
 
-An informal fix -- stop reordering the correlation vector along with the permuted
-gene ranks -- corrected that calibration problem, but at a real cost: on a real
-PI3K-perturbation dataset, the same fix reduced detection of expected cell-cycle
-pathways at `weight = 0.75` from 6/14 down to 0/14 at 6 hours, and from 10/14 down
-to 3/14 at 24 hours. Fixing the false-positive problem this way also suppressed real
-signal -- a fundamental validity-vs-power tension that a purely permutation-based
-approach could not resolve.
+Scoring 400 randomly constructed (null) gene sets against the LUAD data shows
+this directly. At `weight = 0.75`, `ssGSEA2.0-orig` calls 11.6% of null gene
+sets significant at p < 0.05, against an expected 5%. Holding the weight vector
+fixed in its observed order and permuting only gene-set membership
+(`ssGSEA2.0-fixed`) brings this back to 5.2%. `ssGSEA3.0` gives 6.25%, and its
+null p-values are the only ones at `weight = 0.75` not significantly different
+from uniform (Kolmogorov-Smirnov p = 0.44).
 
-`ssGSEA3.0` circumvents the need for this tradeoff by using bootstrap sampling. In a
-traditional permutation test, random permutations of the data are used to derive the
-null distribution, and the p-value is calculated based on how extreme the observed
-value is compared to the null distribution. Here, we use bootstrap sampling to
-determine the standard deviation of the observed value, and the p-value is determined
-akin to a z-test on the observed value (using the bootstrap-derived standard
-deviation). The effective null distribution is the mean shifted bootstrap values. With
-this approach, all gene-gene relationships and dependencies are maintained, with the
-bootstrap providing a perturbation of the enrichment score, thereby minimizing bias and
-controlling false positives.
+### The fix costs detection power; the bootstrap recovers it
 
-### Directional (PTM-SEA) scoring gets an extra benefit
+`ssGSEA2.0-fixed` restores calibration, but finds noticeably fewer significant
+pathways at nonzero weight -- including biologically relevant ones (see the
+REACTOME example below). In a synthetic simulation with a known embedded ±0.5
+shift (10,000 gene sets of 20 members, `weight = 1`), `ssGSEA3.0` detected
+significantly more true positives than `ssGSEA2.0-fixed` (4,629 vs. 4,211;
+odds ratio 3.11, McNemar p < 0.0001). `ssGSEA3.0` replaces gene-label permutation with
+bootstrap resampling of the measured features themselves, sampled with
+replacement. Each bootstrap draw is re-ranked by its resampled values and the
+gene set's members are relocated within that ranking, while each feature's
+weight is always taken from the original data in its original order. The
+bootstrap scores are centered to their own mean, their standard deviation is
+used as a bootstrap standard error, and the p-value comes from the resulting
+z-score. NES is the observed score divided by the mean of the same-signed
+centered bootstrap scores.
 
-PTM-SEA's directional gene sets (with `;u`/`;d`-labeled "up" and "down" members)
-benefit from bootstrap resampling in a second, independent way. Permutation always
-preserves the exact up/down membership counts of a gene set, only ever moving
-*where* they fall in the ranking. Bootstrap resampling with replacement lets some
-members drop out (and others duplicate) in any given replicate, so the up- and
-down-regulated counts genuinely vary from replicate to replicate -- a richer,
-two-sided source of resampling variability with no permutation-based analogue.
+### Directional (PTM-SEA) scoring
 
-A controlled simulation with known ground truth (embedding a real, moderate,
-correctly-oriented effect) confirmed this: both methods are well-calibrated under a
-true null, but bootstrap shows a real, statistically robust power advantage
-specifically for directional scoring (McNemar p = 0.0001, odds ratio 1.85) that
-does not replicate for non-directional scoring at the same sample size. The two
-worked examples below show both regimes on real data.
+PTM-SEA's directional gene sets (`;u`/`;d`-labeled "up" and "down" members) are
+scored by combining separately computed up and down sub-scores; with
+`ssGSEA3.0` both are rescored from the same bootstrap draw. In a synthetic
+simulation with a known embedded ±0.5 shift (10,000 gene sets of 20 members,
+`weight = 0`), both permutation and bootstrap were well-calibrated under the
+null, and the bootstrap found significantly more true positives for both
+non-directional (428 bootstrap-only vs. 229 permutation-only; odds ratio 1.87,
+McNemar p < 0.0001) and directional gene sets (390 vs. 296; odds ratio 1.32,
+McNemar p = 0.0004). On real data the gain is much larger for directional
+scoring, as Example 3 shows.
 
-## Example 1: ssGSEA on tumor NMF factors
+## Helpers used below
 
-The bundled example is a PANOPLY LUAD (lung adenocarcinoma) NMF factorization
-(4 factors, CPTAC/ICPC v6.1) scored against the MSigDB HALLMARK collection --
-an ordinary (non-directional) ssGSEA analysis.
+All three examples count a gene set as significant if it passes the FDR
+threshold in at least one sample (not by counting gene-set x sample cells,
+which would double-count gene sets significant in several samples), and draw
+side-by-side heatmaps with one shared row order and color scale so the panels
+can be compared directly:
+
+```{r helpers}
+## gene sets significant (FDR < fdr.max) in >= 1 sample
+is_sig <- function(res, fdr.max) apply(res$fdr < fdr.max, 1, any)
+
+## pooled NES correlation across all gene sets and samples
+nes_cor <- function(a, b, method = "pearson") {
+  cor(as.vector(a$scores), as.vector(b$scores), method = method)
+}
+
+## one plot_ssgsea_heatmap() panel per implementation, sharing the first
+## panel's row clustering and one color scale (1st/99th percentile clamp of
+## the plotted NES across all panels). `labels` optionally shortens long
+## gene set names for display.
+compare_heatmaps <- function(results, terms, fdr.max, labels = NULL) {
+  if (!is.null(labels)) {
+    new <- setNames(labels(terms), terms)
+    results <- lapply(results, function(r) {
+      r <- r[c("scores", "fdr", "sample.names", "output.score.type")]
+      r$scores <- r$scores[terms, , drop = FALSE]
+      r$fdr <- r$fdr[terms, , drop = FALSE]
+      rownames(r$scores) <- rownames(r$fdr) <- r$gs.names <- unname(new[terms])
+      r
+    })
+    terms <- unname(new[terms])
+  }
+  nes <- unlist(lapply(results, function(r) r$scores[terms, ]))
+  q <- quantile(nes, c(0.01, 0.99))
+  nes.range <- c(floor(q[1]), ceiling(q[2]))
+  first <- results[[1]]$scores
+  shared.clustering <- function(m) hclust(dist(first[rownames(m), , drop = FALSE]))
+  n <- length(results)
+  panels <- lapply(seq_len(n), function(i) {
+    ht <- plot_ssgsea_heatmap(results[[i]], terms = terms, fdr.max = fdr.max,
+                              cluster_rows = shared.clustering, nes.range = nes.range,
+                              title = names(results)[i], title_fontsize = 10,
+                              show_category = i == 1, show_row_dend = i == 1,
+                              show_row_names = i == n, show_heatmap_legend = i == n)
+    ## concatenated heatmaps need unique names; only the last panel's ("NES")
+    ## is ever shown, as its legend title
+    if (i < n) ht@name <- paste0("NES_", i)
+    ## angled, so titles wider than their narrow panels don't collide
+    ht@column_title_param$rot <- 45
+    ht@column_title_param$just <- c(0, 0.5)
+    ht
+  })
+  ComplexHeatmap::draw(Reduce(`+`, panels), ht_gap = grid::unit(6, "mm"))
+}
+
+## REACTOME names run past 70 characters: drop the prefix and underscores,
+## and cut long names at a word boundary
+short_reactome <- function(x, max.chars = 42) {
+  x <- gsub("_", " ", sub("^REACTOME_", "", x))
+  cut <- sub("\\s+\\S*$", "", substr(x, 1, max.chars))
+  ifelse(nchar(x) > max.chars, paste0(cut, "..."), x)
+}
+
+method.names <- c(orig = "ssGSEA2.0-orig", fixed = "ssGSEA2.0-fixed", v3 = "ssGSEA3.0")
+```
+
+## Example 1: ssGSEA on LUAD NMF factors, HALLMARK
+
+The bundled LUAD dataset holds the feature weights from non-negative matrix
+factorization (NMF) of a lung adenocarcinoma cohort (Satpathy et al. 2025),
+derived with the PANOPLY pipeline. Its four factors are named after their
+published biological identities: Unstable-proliferative, Quiescent-EGFR,
+Immune-active-KRAS and Stable-early-stage. The original publication scored
+these against MSigDB HALLMARK v6.2 at `weight = 1` and FDR < 0.01:
 
 ```{r luad-score, eval = FALSE}
 res <- ssGSEA3(
-  input.ds = "example/LUAD_matrix_W_combined_signed_gc.gct",
+  input.ds = system.file("example", "LUAD_matrix_W_combined_signed_gc.gct", package = "ssGSEA3"),
   output.prefix = "luad",
-  gene.set.databases = "db/msigdb/h.all.v7.0.symbols.gmt",
+  gene.set.databases = system.file("example", "h.all.v6.2.symbols.gmt", package = "ssGSEA3"),
   sample.norm.type = "rank", weight = 1, correl.type = "z.score",
   statistic = "area.under.RES", min.overlap = 10, nperm = 1000, seed = 42
 )
 ```
 
+This takes about 0.8 minutes on 10 cores (`ssGSEA2.0-orig`: about 0.5 minutes).
+Here we load the manuscript's results for all three implementations, at both
+`weight = 1` and `weight = 0`:
+
 ```{r luad-load}
-## the call above takes ~1 min at the default nperm=1000 -- loading its
-## precomputed output here keeps this vignette's own build fast, and keeps
-## the displayed results consistent with the full-nperm comparison below
-## (rather than a faster-but-different reduced-nperm run)
-res <- readRDS(system.file("extdata", "luad_ssgsea3_result.rds", package = "ssGSEA3"))
-res
+luad <- readRDS(system.file("extdata", "luad_hallmark_manuscript_results.rds",
+                            package = "ssGSEA3"))
+luad$weight1$v3
+fdr.hallmark <- 0.01
+
+sig.hallmark <- sapply(c("weight0", "weight1"), function(w) {
+  sapply(luad[[w]], function(r) sum(is_sig(r, fdr.hallmark)))
+})
+dimnames(sig.hallmark) <- list(method.names, c("weight = 0", "weight = 1"))
+sig.hallmark
 ```
 
-The four factors are labeled by their NMF cluster number; renaming them to their
-published biological identities makes the heatmap self-explanatory:
-
-```{r luad-rename}
-cluster.names <- c(
-  "1" = "Unstable-proliferative", "2" = "Quiescent-EGFR",
-  "3" = "Immune-active-KRAS", "4" = "Stable-early-stage"
-)
-
-rename_cols <- function(x, map) {
-  colnames(x) <- unname(map[colnames(x)])
-  x
-}
-res$scores <- rename_cols(res$scores, cluster.names)
-res$pvalues <- rename_cols(res$pvalues, cluster.names)
-res$fdr <- rename_cols(res$fdr, cluster.names)
-res$sample.names <- unname(cluster.names[res$sample.names])
+```{r luad-compare, include = FALSE}
+s1 <- lapply(luad$weight1, is_sig, fdr.max = fdr.hallmark)
 ```
 
-```{r luad-heatmap, fig.width = 8, fig.height = 10}
-ht <- plot_ssgsea_heatmap(res, top_n = 10, fdr.max = 0.05,
-                           title = "LUAD PANOPLY -- HALLMARK (ssGSEA3.0)")
-ComplexHeatmap::draw(ht)
+At `weight = 0`, where the correlation-vector reordering cannot occur, all three
+implementations find `r sig.hallmark[1, 1]` significant gene sets. At
+`weight = 1`, fixing the reordering drops `ssGSEA2.0-orig`'s
+`r sig.hallmark[1, 2]` to `r sig.hallmark[2, 2]`, while `ssGSEA3.0` finds
+`r sig.hallmark[3, 2]`, keeping `r sum(s1$orig & s1$v3 & !s1$fixed)` that
+`ssGSEA2.0-fixed` lost. The results nonetheless agree closely:
+`r sum(s1$fixed & s1$orig)` of the `r sum(s1$fixed)` gene sets significant in
+`ssGSEA2.0-fixed` are also significant in `ssGSEA2.0-orig`, and pooled NES
+correlations at `weight = 1` are high:
+
+```{r luad-cor}
+round(c(
+  "orig vs. fixed" = nes_cor(luad$weight1$orig, luad$weight1$fixed),
+  "orig vs. ssGSEA3.0" = nes_cor(luad$weight1$orig, luad$weight1$v3)
+), 2)
 ```
 
-The proliferation program (`MYC_TARGETS`, `E2F_TARGETS`, `MTORC1_SIGNALING`,
-`OXIDATIVE_PHOSPHORYLATION`, `GLYCOLYSIS`) is strongly and specifically enriched in
-the "Unstable-proliferative" factor, matching its published biological identity --
-a useful sanity check that the scoring and reporting pipeline agree with the
-underlying biology.
+The 28 curated HALLMARK gene sets shown in the original publication look
+consistent across all three implementations (`*` marks FDR < 0.01):
 
-### Comparison against the original ssGSEA2.0
-
-This dataset is scored at `weight = 1` -- exactly the regime affected by the
-weight-dependent calibration issue described above, so it demonstrates the
-*other* side of the bootstrap's benefit: rather than finding more real signal
-(as in the directional PTM-SEA example below), it trims down some of the
-original ssGSEA2.0's likely-inflated calls while retaining the large majority
-of them. As above, these are precomputed results (`nperm = 1000`, run outside
-this vignette):
-
-```{r luad-comparison}
-cmp.luad <- readRDS(system.file(
-  "extdata", "luad_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"
-))
-nes2.luad <- as.vector(cmp.luad$ssgsea2.nes)
-nes3.luad <- as.vector(cmp.luad$ssgsea3.nes)
-
-cat("Gene sets compared:", length(cmp.luad$gene.set.names), "\n")
-cat("NES Pearson r:    ", round(cor(nes2.luad, nes3.luad), 3), "\n")
-cat("NES Spearman rho: ", round(cor(nes2.luad, nes3.luad, method = "spearman"), 3), "\n")
-
-## a gene set counts as "significant" if FDR<0.05 in >=1 of the 4 samples --
-## NOT the same as counting gene-set x sample cells, which would double-count
-## any gene set significant in multiple samples
-sig2.luad <- apply(cmp.luad$ssgsea2.fdr < 0.05, 1, any)
-sig3.luad <- apply(cmp.luad$ssgsea3.fdr < 0.05, 1, any)
-cat("\nGene sets significant (FDR < 0.05 in >=1 sample), of", length(cmp.luad$gene.set.names), "total:\n")
-cat("  ssGSEA2.0:", sum(sig2.luad), " ssGSEA3.0:", sum(sig3.luad),
-    " both:", sum(sig2.luad & sig3.luad), " ssGSEA2.0-only:", sum(sig2.luad & !sig3.luad),
-    " ssGSEA3.0-only:", sum(!sig2.luad & sig3.luad), "\n")
+```{r luad-heatmap, fig.width = 9, fig.height = 7.5}
+compare_heatmaps(setNames(luad$weight1, method.names), luad$heatmap.terms$hallmark,
+                 fdr.max = fdr.hallmark)
 ```
 
-```{r luad-scatter, fig.height = 5}
-plot(nes2.luad, nes3.luad,
-     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3.0 NES", pch = 16, col = "#00000066",
-     main = "LUAD PANOPLY, HALLMARK: NES agreement")
-abline(0, 1, col = "firebrick", lty = 2)
-```
+So the strongest signals found by `ssGSEA2.0-orig` are not artifacts of the
+reordering, and previously published `weight = 1` results remain largely
+reliable.
 
-`ssGSEA3.0` agrees with `ssGSEA2.0` on the overwhelming majority of significant
-calls (`r sum(sig2.luad & sig3.luad)` shared), while dropping
-`r sum(sig2.luad & !sig3.luad)` calls unique to `ssGSEA2.0` and adding almost
-none of its own -- consistent with correcting a false-positive-prone regime
-rather than disagreeing with it.
+## Example 2: the same LUAD factors, REACTOME
 
-## Example 2: the same tumor NMF factors, scored against REACTOME
-
-HALLMARK's 50 gene sets are curated to be similarly sized and mechanistically
-narrow (one canonical process each). REACTOME is far larger and more
-functionally diverse -- gene sets range from a handful of genes up to several
-hundred, spanning everything from individual metabolic reactions to broad
-pathway categories -- which makes it a useful second, harder test of the same
-LUAD data: does `ssGSEA3.0` agree with `ssGSEA2.0` as well on a
-size/function-heterogeneous database as it does on a curated, uniform one?
+HALLMARK's 50 gene sets are curated to be similar in size and narrow in scope.
+REACTOME (1,167 gene sets after the `min.overlap = 10` filter, ranging from ten
+to several hundred genes) is a harder test of the same data, scored at
+FDR < 0.05:
 
 ```{r luad-reactome-score, eval = FALSE}
 res.reactome <- ssGSEA3(
-  input.ds = "example/LUAD_matrix_W_combined_signed_gc.gct",
+  input.ds = system.file("example", "LUAD_matrix_W_combined_signed_gc.gct", package = "ssGSEA3"),
   output.prefix = "luad_reactome",
-  gene.set.databases = "db/msigdb/reactome_subset.gmt",
+  gene.set.databases = system.file("example", "reactome_subset.gmt", package = "ssGSEA3"),
   sample.norm.type = "rank", weight = 1, correl.type = "z.score",
   statistic = "area.under.RES", min.overlap = 10, nperm = 1000, seed = 42
 )
 ```
 
+This takes about 18 minutes on 10 cores (`ssGSEA2.0-orig`: about 9 minutes).
+
 ```{r luad-reactome-load}
-## as above, loading the precomputed output instead of re-running the
-## ~18 min scoring call live -- restricted to the 1,167 gene sets common to
-## both engines being compared below
-res.reactome <- readRDS(system.file(
-  "extdata", "luad_reactome_ssgsea3_result.rds", package = "ssGSEA3"
-))
-res.reactome
+reactome <- readRDS(system.file("extdata", "luad_reactome_manuscript_results.rds",
+                                package = "ssGSEA3"))
+fdr.reactome <- 0.05
+
+sig.reactome <- sapply(c("weight0", "weight1"), function(w) {
+  sapply(reactome[[w]], function(r) sum(is_sig(r, fdr.reactome)))
+})
+dimnames(sig.reactome) <- list(method.names, c("weight = 0", "weight = 1"))
+sig.reactome
+
+round(c(
+  "orig vs. fixed" = nes_cor(reactome$weight1$orig, reactome$weight1$fixed),
+  "orig vs. ssGSEA3.0" = nes_cor(reactome$weight1$orig, reactome$weight1$v3)
+), 2)
 ```
 
-```{r luad-reactome-rename}
-res.reactome$scores <- rename_cols(res.reactome$scores, cluster.names)
-res.reactome$pvalues <- rename_cols(res.reactome$pvalues, cluster.names)
-res.reactome$fdr <- rename_cols(res.reactome$fdr, cluster.names)
-res.reactome$sample.names <- unname(cluster.names[res.reactome$sample.names])
+```{r luad-reactome-compare, include = FALSE}
+r1 <- lapply(reactome$weight1, is_sig, fdr.max = fdr.reactome)
+pct <- function(a, b) round(100 * (a - b) / b)
 ```
 
-Auto-selecting top terms by `|NES|` on a size-heterogeneous database like
-REACTOME tends to surface a handful of very large "umbrella" gene sets (e.g.
-`METABOLISM_OF_RNA`, `CELL_CYCLE`) rather than the mechanistically specific
-pathways a reader would actually want to see. Instead, this heatmap uses a
-curated list of 30 lung adenocarcinoma driver pathways spanning EGFR/ERBB,
-RAS/RAF/MAPK, ALK, PI3K/AKT, WNT, NOTCH, TGF-beta, TP53, DNA damage/repair,
-cell-cycle checkpoints, apoptosis, KEAP1-NRF2, telomere maintenance, FGFR,
-MET, and hypoxia/VEGF signaling:
+The pattern seen on HALLMARK is clearer here. Despite NES correlation of
+`r round(nes_cor(reactome$weight1$orig, reactome$weight1$fixed), 2)`,
+`ssGSEA2.0-fixed` finds `r -pct(sig.reactome[2, 2], sig.reactome[1, 2])`% fewer
+significant gene sets than `ssGSEA2.0-orig` at `weight = 1`. Almost all of its
+calls are shared with `ssGSEA2.0-orig` (`r sum(r1$fixed & r1$orig)` of
+`r sum(r1$fixed)`), but it misses `r sum(r1$orig & !r1$fixed)`, and some of those
+are relevant to LUAD, such as FGFR1 signaling and cellular senescence.
+`ssGSEA3.0` finds `r sig.reactome[3, 2]`, a
+`r pct(sig.reactome[3, 2], sig.reactome[2, 2])`% increase over `ssGSEA2.0-fixed`.
+Fifteen representative gene sets significant in both `ssGSEA2.0-orig` and
+`ssGSEA3.0` but missed by `ssGSEA2.0-fixed` at `weight = 1` (manuscript Figure 2D;
+`*` marks FDR < 0.05):
 
-```{r luad-reactome-heatmap, fig.width = 8, fig.height = 10}
-luad.driver.pathways <- c(
-  "REACTOME_SIGNALING_BY_EGFR", "REACTOME_SIGNALING_BY_EGFR_IN_CANCER",
-  "REACTOME_SIGNALING_BY_ERBB4", "REACTOME_SIGNALING_BY_ALK_IN_CANCER",
-  "REACTOME_REGULATION_OF_RAS_BY_GAPS", "REACTOME_SIGNALLING_TO_ERKS",
-  "REACTOME_MAP2K_AND_MAPK_ACTIVATION",
-  "REACTOME_SIGNALING_BY_MODERATE_KINASE_ACTIVITY_BRAF_MUTANTS",
-  "REACTOME_PI3K_AKT_SIGNALING_IN_CANCER",
-  "REACTOME_CONSTITUTIVE_SIGNALING_BY_ABERRANT_PI3K_IN_CANCER",
-  "REACTOME_SIGNALING_BY_WNT_IN_CANCER", "REACTOME_SIGNALING_BY_NOTCH4",
-  "REACTOME_SIGNALING_BY_TGF_BETA_RECEPTOR_COMPLEX",
-  "REACTOME_SMAD2_SMAD3_SMAD4_HETEROTRIMER_REGULATES_TRANSCRIPTION",
-  "REACTOME_REGULATION_OF_TP53_ACTIVITY",
-  "REACTOME_REGULATION_OF_TP53_ACTIVITY_THROUGH_PHOSPHORYLATION",
-  "REACTOME_TP53_REGULATES_TRANSCRIPTION_OF_DNA_REPAIR_GENES",
-  "REACTOME_G1_S_DNA_DAMAGE_CHECKPOINTS", "REACTOME_G2_M_DNA_DAMAGE_CHECKPOINT",
-  "REACTOME_MITOTIC_SPINDLE_CHECKPOINT", "REACTOME_APOPTOSIS",
-  "REACTOME_KEAP1_NFE2L2_PATHWAY", "REACTOME_NUCLEAR_EVENTS_MEDIATED_BY_NFE2L2",
-  "REACTOME_TELOMERE_MAINTENANCE", "REACTOME_SIGNALING_BY_FGFR",
-  "REACTOME_SIGNALING_BY_FGFR_IN_DISEASE", "REACTOME_CELLULAR_RESPONSE_TO_HYPOXIA",
-  "REACTOME_SIGNALING_BY_VEGF", "REACTOME_SIGNALING_BY_MET",
-  "REACTOME_DISEASES_OF_DNA_REPAIR"
-)
-ht.reactome <- plot_ssgsea_heatmap(res.reactome, terms = luad.driver.pathways,
-                                    fdr.max = 0.05,
-                                    title = "LUAD PANOPLY -- REACTOME driver pathways (ssGSEA3.0)")
-ComplexHeatmap::draw(ht.reactome)
+```{r luad-reactome-heatmap-w1, fig.width = 9, fig.height = 5}
+compare_heatmaps(setNames(reactome$weight1, method.names),
+                 reactome$heatmap.terms$reactome.fixed.missed, fdr.max = fdr.reactome,
+                 labels = short_reactome)
 ```
 
-All 30 of these are significant (FDR<0.05) in at least one of the four NMF
-factors. Cell-cycle and DNA-damage-checkpoint pathways
-(`G1_S_DNA_DAMAGE_CHECKPOINTS`, `TP53_REGULATES_TRANSCRIPTION_OF_DNA_REPAIR_GENES`,
-`MITOTIC_SPINDLE_CHECKPOINT`) are strongly and specifically enriched in the
-"Unstable-proliferative" factor, matching its published biological identity --
-the same kind of biology-matches-label sanity check as the HALLMARK example
-above, now visible on a much larger and more heterogeneous database.
+At `weight = 0`, both `ssGSEA2.0` implementations find `r sig.reactome[1, 1]`
+significant gene sets and `ssGSEA3.0` finds `r sig.reactome[3, 1]`
+(`r pct(sig.reactome[3, 1], sig.reactome[1, 1])`% more), including PI3K signaling
+and aberrant cell-cycle regulation. Fifteen representative gene sets significant
+only in `ssGSEA3.0` at `weight = 0` (manuscript Figure 2E):
 
-### Comparison against the original ssGSEA2.0
-
-As in the HALLMARK example, this dataset is scored at `weight = 1`. REACTOME's
-size and functional diversity make the calibration/power tradeoff described
-above far more visible than it is on HALLMARK's uniform, curated 50 gene sets:
-
-```{r luad-reactome-comparison}
-cmp.reactome <- readRDS(system.file(
-  "extdata", "luad_reactome_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"
-))
-nes2.reactome <- as.vector(cmp.reactome$ssgsea2.nes)
-nes3.reactome <- as.vector(cmp.reactome$ssgsea3.nes)
-
-cat("Gene sets compared:", length(cmp.reactome$gene.set.names), "\n")
-cat("NES Pearson r:    ", round(cor(nes2.reactome, nes3.reactome), 3), "\n")
-cat("NES Spearman rho: ", round(cor(nes2.reactome, nes3.reactome, method = "spearman"), 3), "\n")
-
-sig2.reactome <- apply(cmp.reactome$ssgsea2.fdr < 0.05, 1, any)
-sig3.reactome <- apply(cmp.reactome$ssgsea3.fdr < 0.05, 1, any)
-cat("\nGene sets significant (FDR < 0.05 in >=1 sample), of", length(cmp.reactome$gene.set.names), "total:\n")
-cat("  ssGSEA2.0:", sum(sig2.reactome), " ssGSEA3.0:", sum(sig3.reactome),
-    " both:", sum(sig2.reactome & sig3.reactome),
-    " ssGSEA2.0-only:", sum(sig2.reactome & !sig3.reactome),
-    " ssGSEA3.0-only:", sum(!sig2.reactome & sig3.reactome), "\n")
+```{r luad-reactome-heatmap-w0, fig.width = 9, fig.height = 5}
+compare_heatmaps(setNames(reactome$weight0, method.names),
+                 reactome$heatmap.terms$reactome.v3.only.w0, fdr.max = fdr.reactome,
+                 labels = short_reactome)
 ```
 
-```{r luad-reactome-scatter, fig.height = 5}
-plot(nes2.reactome, nes3.reactome,
-     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3.0 NES", pch = 16, col = "#00000022",
-     main = "LUAD PANOPLY, REACTOME: NES agreement")
-abline(0, 1, col = "firebrick", lty = 2)
-```
-
-The pattern is the same shape as HALLMARK's -- `ssGSEA3.0` keeps the large
-majority of `ssGSEA2.0`'s significant calls (`r sum(sig2.reactome & sig3.reactome)`
-of `r sum(sig2.reactome)`) while adding relatively few new ones of its own
-(`r sum(!sig2.reactome & sig3.reactome)`) -- but at much larger absolute scale
-(`r length(cmp.reactome$gene.set.names)` gene sets vs. HALLMARK's 50), exactly
-as the size/function-diversity hypothesis above predicts: a bigger, more
-heterogeneous database makes the same underlying calibration difference
-between the two engines far more visible.
+So `ssGSEA3.0` fixes the calibration problem in `ssGSEA2.0-orig` without giving
+up as much detection power as `ssGSEA2.0-fixed`, and the `weight = 0` result
+suggests that feature-level bootstrapping itself has more power than gene-label
+permutation.
 
 ## Example 3: PTM-SEA on a PI3K-inhibitor perturbation dataset
 
-The second example (bundled in the package's `example/` directory, alongside
-its source) is a site-centric phosphoproteomics dataset from the original
-PTM-SEA publication itself (Krug et al. 2019 -- see the package `README` for
-the full citation): T47D breast cancer cells treated with the PI3Kα inhibitor
-BYL719 (vs. a DMSO control) for 6h and 24h (`PI3K_pert_logP_n2x23936.gct`),
-scored against PTMsigDB v2.0.0's flanking-sequence human signatures -- a
-directional PTM-SEA analysis. The call is the same shape as the ssGSEA example
-above:
+The second dataset (installed with the package in its `example/` folder) is site-centric phosphoproteomics
+from the original PTM-SEA publication (Krug et al. 2019 -- see the package
+`README` for the full citation): T47D breast cancer cells treated with the
+PI3Kα inhibitor BYL719 vs. DMSO for 6h and 24h. The input values are log-signed
+p-values from a moderated two-sample t-test at each timepoint. Because these
+are not measured values, they are scored at `weight = 0` against PTMsigDB
+v2.0.0's human flanking-sequence signatures:
 
 ```{r ptmsea-score, eval = FALSE}
 res.ptmsea <- ssGSEA3(
-  input.ds = "example/PI3K_pert_logP_n2x23936.gct",
+  input.ds = system.file("example", "PI3K_pert_logP_n2x23936.gct", package = "ssGSEA3"),
   output.prefix = "pi3k",
-  gene.set.databases = "example/ptm.sig.db.all.flanking.human.v2.0.0.gmt",
+  gene.set.databases = system.file("example", "ptm.sig.db.all.flanking.human.v2.0.0.gmt", package = "ssGSEA3"),
   sample.norm.type = "rank", weight = 0, correl.type = "rank",
   statistic = "area.under.RES", min.overlap = 5, nperm = 1000, seed = 42
 )
 ```
 
+This takes about 9 minutes on 10 cores (`ssGSEA2.0-orig`: about 4 minutes). At
+`weight = 0` the two `ssGSEA2.0` implementations are equivalent, so as in the
+manuscript only `ssGSEA2.0-fixed` is compared with `ssGSEA3.0`:
+
 ```{r ptmsea-load}
-## as above, loading the precomputed (nperm=1000) output instead of
-## re-running the ~9 min scoring call live
-res.ptmsea <- readRDS(system.file("extdata", "pi3k_ssgsea3_result.rds", package = "ssGSEA3"))
-res.ptmsea
+pi3k <- readRDS(system.file("extdata", "pi3k_ptmsigdb_manuscript_results.rds",
+                            package = "ssGSEA3"))
+fdr.pi3k <- 0.05
+p0 <- lapply(pi3k$weight0, is_sig, fdr.max = fdr.pi3k)
+
+round(c(
+  "NES Pearson r" = nes_cor(pi3k$weight0$fixed, pi3k$weight0$v3),
+  "NES Spearman rho" = nes_cor(pi3k$weight0$fixed, pi3k$weight0$v3, method = "spearman")
+), 2)
+
+c("ssGSEA2.0-fixed" = sum(p0$fixed), "ssGSEA3.0" = sum(p0$v3),
+  "both" = sum(p0$fixed & p0$v3), "ssGSEA3.0 only" = sum(p0$v3 & !p0$fixed))
 ```
 
-PTMsigDB's `CATEGORY-name` convention (`KINASE-`, `PERT-`, `PATH-`, `DISEASE-`) drives
-its own row-grouping in `plot_ssgsea_heatmap()`, distinct from the HALLMARK-category
-grouping used above:
+`ssGSEA3.0` keeps most of `ssGSEA2.0-fixed`'s significant signatures
+(`r sum(p0$fixed & p0$v3)` of `r sum(p0$fixed)`) while finding
+`r pct(sum(p0$v3), sum(p0$fixed))`% more overall -- far more than the
+`r pct(sig.reactome[3, 1], sig.reactome[1, 1])`% gain on REACTOME at `weight = 0`.
+Many of the added signatures sit on the PI3K signaling axis this experiment
+perturbs: upstream activators (PDK1, AMPKA2), downstream targets (p70S6K, SGK1),
+MAPK-pathway crosstalk, and the cell-cycle response. Thirty-five representative
+signatures significant in `ssGSEA3.0` but not `ssGSEA2.0-fixed` (manuscript
+Figure 3C; `*` marks FDR < 0.05):
 
 ```{r ptmsea-heatmap, fig.width = 8, fig.height = 9}
-ht.ptmsea <- plot_ssgsea_heatmap(res.ptmsea, top_n = 10, fdr.max = 0.05,
-                                  title = "PI3K perturbation -- PTMsigDB v2.0.0 (ssGSEA3.0)")
-ComplexHeatmap::draw(ht.ptmsea)
+compare_heatmaps(setNames(pi3k$weight0, method.names[c("fixed", "v3")]),
+                 pi3k$heatmap.terms$pi3k.v3.only, fdr.max = fdr.pi3k)
 ```
 
-### Comparison against the original ssGSEA2.0
-
-Unlike the LUAD comparison above, `weight = 0` is used here deliberately, to
-isolate the bootstrap-vs-permutation effect on directional scoring from the
-separate weight-dependent issue that comparison demonstrated. The results
-below use the default `nperm = 1000` (run outside this vignette, since a full
-comparison run against the original, unmodified `ssGSEA2.0` code depends on
-software not part of this package):
-
-```{r ptmsea-comparison}
-cmp <- readRDS(system.file(
-  "extdata", "pi3k_ssgsea2_vs_ssgsea3_comparison.rds", package = "ssGSEA3"
-))
-nes2 <- as.vector(cmp$ssgsea2.nes)
-nes3 <- as.vector(cmp$ssgsea3.nes)
-fdr2 <- as.vector(cmp$ssgsea2.fdr)
-fdr3 <- as.vector(cmp$ssgsea3.fdr)
-
-cat("Gene sets compared:", length(cmp$gene.set.names), "\n")
-cat("NES Pearson r:    ", round(cor(nes2, nes3), 3), "\n")
-cat("NES Spearman rho: ", round(cor(nes2, nes3, method = "spearman"), 3), "\n")
-cat("FDR Pearson r:    ", round(cor(fdr2, fdr3), 3), "\n")
-cat("FDR Spearman rho: ", round(cor(fdr2, fdr3, method = "spearman"), 3), "\n")
-
-## a gene set counts as "significant" if FDR<0.05 in >=1 of the 2 samples --
-## NOT the same as counting gene-set x sample cells, which would double-count
-## any gene set significant in both samples
-sig2 <- apply(cmp$ssgsea2.fdr < 0.05, 1, any)
-sig3 <- apply(cmp$ssgsea3.fdr < 0.05, 1, any)
-cat("\nGene sets significant (FDR < 0.05 in >=1 sample), of", length(cmp$gene.set.names), "total:\n")
-cat("  ssGSEA2.0:", sum(sig2), " ssGSEA3.0:", sum(sig3),
-    " both:", sum(sig2 & sig3), " ssGSEA2.0-only:", sum(sig2 & !sig3),
-    " ssGSEA3.0-only:", sum(!sig2 & sig3), "\n")
-```
-
-```{r ptmsea-scatter, fig.height = 5}
-plot(nes2, nes3,
-     xlab = "ssGSEA2.0 NES", ylab = "ssGSEA3.0 NES", pch = 16, col = "#00000066",
-     main = "PI3K perturbation, PTMsigDB v2.0.0: NES agreement")
-abline(0, 1, col = "firebrick", lty = 2)
-```
-
-`ssGSEA3.0` retains the large majority of `ssGSEA2.0`'s significant calls (`r sum(sig2 & sig3)`
-of `r sum(sig2)`) while finding substantially more overall (`r sum(sig3)` vs.
-`r sum(sig2)`) -- consistent with the confirmed power advantage for directional
-scoring described above, now demonstrated on a real, published dataset.
-
-### Are the additional calls biologically plausible?
-
-A real power advantage should surface signatures that make sense for *this specific*
-perturbation, not an arbitrary scattering of unrelated biology. Of the
-`r sum(!sig2 & sig3)` signatures significant under `ssGSEA3.0` but never
-significant (in either sample) under `ssGSEA2.0`, several sit directly on the
-PI3K/AKT/mTOR axis this dataset perturbs:
-
-```{r ptmsea-gained-table}
-gained <- c(
-  "KINASE-iKiP_PIK3R5", "KINASE-PSP_PDK1/PDPK1", "KINASE-PSP_SGK1",
-  "KINASE-PSP_p70S6K/RPS6KB1", "PERT-PSP_TORIN1", "DISEASE-PSP_tuberous_sclerosis"
-)
-data.frame(
-  signature = gained,
-  NES_06h = round(cmp$ssgsea3.nes[gained, 1], 2),
-  NES_24h = round(cmp$ssgsea3.nes[gained, 2], 2),
-  FDR_06h = signif(cmp$ssgsea3.fdr[gained, 1], 2),
-  FDR_24h = signif(cmp$ssgsea3.fdr[gained, 2], 2),
-  row.names = NULL
-)
-```
-
-`PIK3R5` is a PI3K regulatory subunit itself; `PDK1` and `SGK1` are AKT-family
-kinases immediately downstream of PI3K; `p70S6K` is the canonical mTORC1 output
-kinase; `TORIN1` is a PTMsigDB perturbation signature for an mTOR inhibitor;
-`tuberous_sclerosis` is a disease signature driven by TSC1/2, a direct mTORC1
-regulator. This lines up with the original paper's own reported result for
-this exact experiment: PTM-SEA "detected signatures of compounds inhibiting
-PI3K as well as targets downstream of PI3K (AKT, MAPK/ERK) covering a
-substantial fraction of the PI3K pathway" (Krug et al. 2019). `p70S6K` and
-`SGK1`'s substrate signatures moving negative is consistent with declining
-mTORC1/AKT-family output as BYL719 inhibition takes hold; `PDK1` and `PIK3R5`
-trending positive by 24h instead is consistent with the compensatory
-feedback reactivation of upstream RTK/PI3K-node signaling well documented as
-a response to PI3K inhibitors specifically (rather than a random, unrelated
-direction) -- so even the "wrong-direction" hits are still on-pathway. The
-additional calls cluster around the perturbed pathway rather than appearing
-as unrelated noise, which is exactly what `ssGSEA2.0` under-detected here.
-
-A related, separate observation: `PERT-PSP_WORTMANNIN` -- a PTMsigDB signature
-for an *unrelated experiment's* treatment with wortmannin, another PI3K
-inhibitor -- was already significant under `ssGSEA2.0` at 24h (FDR
-`r signif(cmp$ssgsea2.fdr["PERT-PSP_WORTMANNIN", 2], 2)`), so it is not part of
-the "newly significant" tally above. But `ssGSEA3.0` closes a near-miss at 6h
-(FDR `r signif(cmp$ssgsea2.fdr["PERT-PSP_WORTMANNIN", 1], 2)` under `ssGSEA2.0`,
-`r signif(cmp$ssgsea3.fdr["PERT-PSP_WORTMANNIN", 1], 2)` under `ssGSEA3.0`) and
-dramatically strengthens the 24h call (NES
-`r round(cmp$ssgsea2.nes["PERT-PSP_WORTMANNIN", 2], 1)` to
-`r round(cmp$ssgsea3.nes["PERT-PSP_WORTMANNIN", 2], 1)`) -- close to a positive
-control for the same PI3K/mTOR-inhibitor resemblance the newly-significant
-calls above point to.
+The added calls cluster around the perturbed pathway rather than scattering
+across unrelated biology, consistent with a genuine power advantage that is
+most pronounced for directional gene sets.
 
 ## Session info
 

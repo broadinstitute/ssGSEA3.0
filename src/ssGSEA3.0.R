@@ -58,7 +58,7 @@ ssGSEA3 <- function (
                                                     ## actual values matter, and can change the resulting score
                      statistic           = c("area.under.RES", "Kolmogorov-Smirnov"), ## test statistic
                      output.score.type   = c("NES", "ES"),
-                     nperm               = 1000,    ## number of bootstrap replicates for NES case (gene-level resampling)
+                     nperm               = 1000,    ## number of bootstrap replicates for NES case (feature-level resampling)
                      combine.mode        = c("combine.off", "combine.replace", "combine.add"),
                      ## "combine.off" do not combine *_UP and *_DN versions in a single score.
                      ## "combine.replace" combine *_UP and *_DN versions in a single score.
@@ -116,7 +116,7 @@ ssGSEA3 <- function (
         paste('weight:', weight, sep='\t'),
         paste('statistic:', statistic, sep='\t'),
         paste('output.score.type', output.score.type, sep='\t'),
-        paste('nperm (gene-level bootstrap replicates):', nperm, sep='\t'),
+        paste('nperm (feature-level bootstrap replicates):', nperm, sep='\t'),
         paste('global.fdr:', global.fdr, sep='\t'),
         paste('min.overlap:', min.overlap, sep='\t'),
         paste('correl.type:', correl.type, sep='\t'),
@@ -348,7 +348,7 @@ ssGSEA3 <- function (
                              weight = 0,
                              statistic = "Kolmogorov-Smirnov",   ## alternatives: "Kolmogorov-Smirnov", "area.under.RES"
                              gene.set,
-                             nperm = 200,                         ## bootstrap replicates (gene-level)
+                             nperm = 200,                         ## bootstrap replicates (feature-level)
                              correl.type  = "rank",              ## "rank", "z.score", "symm.rank"
                              gene.set.direction=NULL,             ## direction of regulation; has to be in same order than 'gene.set'
                              min.overlap,
@@ -812,7 +812,7 @@ ssGSEA3 <- function (
                     p.val.vector[sample.index] <- 1
 
                     ## ##############################################
-                    ## gene-level bootstrap: resample rows with replacement,
+                    ## feature-level bootstrap: resample rows with replacement,
                     ## recompute rank-ordered ES each replicate -> empirical null of the score
                 } else {
 

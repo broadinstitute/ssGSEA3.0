@@ -4,11 +4,10 @@
 ^data-raw$
 ^README\.md$
 ^config$
-^db$
-^example$
 ^src$
 ^preprocess_gct-cli\.R$
 ^ssgsea-cli\.R$
 ^\.claude$
 ^doc$
 ^Meta$
+^db$

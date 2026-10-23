@@ -1,8 +1,8 @@
 ## Reproducible recipe for data/hallmark_categories.rda
 ## Source: hardcoded HALLMARK -> category mapping used in the lab's
-## pw_hm() (rmd-ssgsea-functions.R), as replicated in
-## ~/Desktop/ssGSEA2_vs_3_comparison/scripts/make_heatmaps.R during the
-## ssGSEA2.0 -> ssGSEA3.0 validation. Bundled here as real package data so
+## pw_hm() (rmd-ssgsea-functions.R), as replicated in the heatmap scripts
+## used during the ssGSEA2.0 -> ssGSEA3.0 validation. Bundled here as real
+## package data so
 ## it's no longer copy-pasted between scripts.
 
 hallmark_categories <- c(

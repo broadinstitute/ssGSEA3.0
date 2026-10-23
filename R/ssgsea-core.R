@@ -234,7 +234,7 @@ gsea_score <- function(ordered.gene.list, gene.set2, weight, n.rows, correl.type
 #' `min()`/`max()` call) or silently pair positions with the wrong member's
 #' direction. This is what made a resampled subset of `gene.names` (as in
 #' [.resample_bootstrap_es()]) unsafe with the original, un-aligned
-#' construction -- gene-level bootstrap resampling can drop individual gene
+#' construction -- feature-level bootstrap resampling can drop individual gene
 #' set members from a given replicate, which ordinary permutation (which
 #' never drops a gene, only reshuffles all of them) cannot.
 #'
@@ -246,7 +246,7 @@ gsea_score <- function(ordered.gene.list, gene.set2, weight, n.rows, correl.type
 #'   `gene.set.direction` (`NULL`, or labels aligned with `gene.set2`).
 #' @keywords internal
 .align_geneset_to_direction <- function(gene.set, gene.set.direction, gene.names) {
-  ## This lookup dominates the gene-level bootstrap hot loop (~86% of self
+  ## This lookup dominates the feature-level bootstrap hot loop (~86% of self
   ## time, profiled) since it reruns every replicate. match(gene.names, u)
   ## hashes the (usually much smaller) gene set instead of scanning
   ## gene.names once per member -- 1.7x-65x faster, scaling better the
@@ -338,7 +338,7 @@ gsea_score <- function(ordered.gene.list, gene.set2, weight, n.rows, correl.type
 #'
 #' The per-gene-set unit of work: for each sample column, handles missing
 #' values, checks minimum overlap, computes the observed enrichment score,
-#' and (when `nperm > 0`) runs the gene-level bootstrap to obtain an NES and
+#' and (when `nperm > 0`) runs the feature-level bootstrap to obtain an NES and
 #' p-value via [bootstrap_es_pvalue()].
 #'
 #' A directional gene set can pass the raw min.overlap check yet still have

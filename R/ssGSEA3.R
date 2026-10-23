@@ -84,7 +84,7 @@
 #' Scores every sample in `input.ds` against every gene set in
 #' `gene.set.databases`, using a per-gene-set running-sum enrichment
 #' statistic (Subramanian et al. 2005; Abazeed et al. 2013) and, for
-#' `output.score.type = "NES"`, a gene-level bootstrap to obtain a
+#' `output.score.type = "NES"`, a feature-level (gene- or site-level) bootstrap to obtain a
 #' normalized enrichment score and p-value (see [bootstrap_es_pvalue()] for
 #' why this replaced the original permutation-based approach).
 #'
@@ -103,7 +103,7 @@
 #' @param output.score.type `"NES"` (bootstrap normalized enrichment score
 #'   and p-value) or `"ES"` (raw enrichment score only, no bootstrapping,
 #'   `p.value` is always `1`).
-#' @param nperm Number of gene-level bootstrap replicates (ignored when
+#' @param nperm Number of feature-level bootstrap replicates (ignored when
 #'   `output.score.type = "ES"`).
 #' @param min.overlap Minimum number of a gene set's members that must be
 #'   present in the data for it to be scored.
@@ -144,7 +144,7 @@
 #'   original ssGSEA2.0 in 2016, but it could never actually manifest there:
 #'   ssGSEA2.0's gene-label *permutation* reorders every gene without ever
 #'   dropping one, so its (fixed, computed-once) position/direction vectors
-#'   never desync. It's specifically ssGSEA3.0's gene-level bootstrap
+#'   never desync. It's specifically ssGSEA3.0's feature-level bootstrap
 #'   resampling *with replacement* -- which can and does drop individual
 #'   genes from a given replicate -- that exposes it; this is a real
 #'   consequence of the bootstrap rework, not a latent defect ssGSEA2.0 use
@@ -203,7 +203,7 @@ ssGSEA3 <- function(input.ds,
       paste("weight:", weight, sep = "\t"),
       paste("statistic:", statistic, sep = "\t"),
       paste("output.score.type", output.score.type, sep = "\t"),
-      paste("nperm (gene-level bootstrap replicates):", nperm, sep = "\t"),
+      paste("nperm (feature-level bootstrap replicates):", nperm, sep = "\t"),
       paste("global.fdr:", global.fdr, sep = "\t"),
       paste("min.overlap:", min.overlap, sep = "\t"),
       paste("correl.type:", correl.type, sep = "\t"),
