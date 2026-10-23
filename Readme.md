@@ -1,5 +1,19 @@
 # ssGSEA2.0/PTM-SEA
 
+> **About this branch (`ssGSEA2.0-fixed`):** this is `ssGSEA2.0` with its
+> correlation-vector reordering fixed, referred to as **ssGSEA2.0-fixed** in
+> the ssGSEA3.0 manuscript (Clark and Mani). The published `ssGSEA2.0`
+> reorders each feature's weight together with its permuted rank, which
+> inflates false positives when `weight > 0`
+> ([ssGSEA2.0 issue #45](https://github.com/broadinstitute/ssGSEA2.0/issues/45)).
+> This branch instead holds the weight vector fixed in its observed order and
+> permutes only gene-set membership (see `src/ssGSEA2.0.R`). It is provided
+> for reproducing the manuscript's comparisons only and is not maintained.
+> For ssGSEA3.0, which replaces permutation testing with feature-level
+> bootstrap resampling, see the
+> [`main` branch](https://github.com/broadinstitute/ssGSEA3.0). The rest of
+> this README is the original `ssGSEA2.0` README.
+
 
 
 Resources for gene-centric **single sample Gene Set Enrichment Analysis (ssGSEA)** of gene expression data (e.g. mRNAs, proteins) and site-centric **PTM Signature Enrichment Analysis (PTM-SEA)** [1] of phosphoproteomics data sets using the [**PTM signatures database (PTMsigDB)**](https://proteomics.broadapps.org/ptmsigdb/) [1].
