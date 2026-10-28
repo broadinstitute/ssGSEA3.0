@@ -29,8 +29,10 @@ manuscript (Clark and Mani), using the same three implementations throughout:
 - **ssGSEA2.0-fixed** -- `ssGSEA2.0` with its correlation-vector reordering
   fixed, available on the
   [`ssGSEA2.0-fixed` branch](https://github.com/broadinstitute/ssGSEA3.0/tree/ssGSEA2.0-fixed)
-  of this repository;
-- **ssGSEA3.0** -- this package.
+  of this repository and archived at
+  [doi:10.5281/zenodo.23734330](https://doi.org/10.5281/zenodo.23734330);
+- **ssGSEA3.0** -- this package, archived at
+  [doi:10.5281/zenodo.23734262](https://doi.org/10.5281/zenodo.23734262).
 
 It covers:
 

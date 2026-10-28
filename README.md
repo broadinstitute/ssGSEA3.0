@@ -1,5 +1,7 @@
 # ssGSEA3.0
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23734262.svg)](https://doi.org/10.5281/zenodo.23734262)
+
 An installable R package for gene-centric **single sample Gene Set Enrichment
 Analysis (ssGSEA)** of expression data (e.g. mRNAs, proteins) and site-centric
 **PTM Signature Enrichment Analysis (PTM-SEA)** [1] of phosphoproteomics data
@@ -135,6 +137,20 @@ Original code written by Pablo Tamayo. Adapted with additional modifications by 
 - additional output files like rank plots and parameter files
 - replacement of gene-label permutation testing with feature-level (gene- or
   site-level) bootstrap resampling for significance (see `vignette("ssgsea2-vs-ssgsea3-comparison")`)
+
+
+## Citation
+
+If you use `ssGSEA3.0`, please cite the software archive:
+
+> Clark, N. M., & Mani, D. R. (2026). ssGSEA3.0: single-sample gene set
+> enrichment analysis with feature-level bootstrap resampling (v1.0.0).
+> Zenodo. https://doi.org/10.5281/zenodo.23734262
+
+`ssGSEA2.0-fixed`, the corrected `ssGSEA2.0` compared against `ssGSEA3.0` in
+the vignette, is archived separately at
+https://doi.org/10.5281/zenodo.23734330 (source on the
+[`ssGSEA2.0-fixed` branch](https://github.com/broadinstitute/ssGSEA3.0/tree/ssGSEA2.0-fixed)).
 
 
 ## License
