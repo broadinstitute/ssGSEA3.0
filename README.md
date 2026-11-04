@@ -11,7 +11,8 @@ using the [**PTM signatures database (PTMsigDB)**](https://proteogenomics.shinya
 feature-level (gene- or site-level) bootstrap resampling for significance.
 This fixes a known weight-dependent calibration issue in the original approach
 while keeping more detection power than a direct fix to the permutation -- see
-`vignette("ssgsea2-vs-ssgsea3-comparison")` for the full story and a
+`vignette("ssgsea2-vs-ssgsea3-comparison")` and the
+[preprint](https://doi.org/10.64898/2026.10.28.762524) for the full story and a
 comparison of `ssGSEA2.0`, its fixed variant, and `ssGSEA3.0` on real data.
 
 
@@ -141,7 +142,13 @@ Original code written by Pablo Tamayo. Adapted with additional modifications by 
 
 ## Citation
 
-If you use `ssGSEA3.0`, please cite the software archive:
+If you use `ssGSEA3.0`, please cite the preprint:
+
+> Clark, N. M., & Mani, D. R. (2026). ssGSEA3.0: Feature-Level Bootstrap
+> Resampling for Robust Assessment of Statistical Significance. bioRxiv.
+> https://doi.org/10.64898/2026.10.28.762524
+
+and, for the specific software version used, the software archive:
 
 > Clark, N. M., & Mani, D. R. (2026). ssGSEA3.0: single-sample gene set
 > enrichment analysis with feature-level bootstrap resampling (v1.0.0).

@@ -23,7 +23,9 @@ Significance is assessed by feature-level (gene- or site-level) bootstrap
 resampling, replacing the gene-label permutation testing used by `ssGSEA2.0`.
 
 This vignette reproduces the biological comparisons from the ssGSEA3.0
-manuscript (Clark and Mani), using the same three implementations throughout:
+manuscript
+([Clark and Mani 2026, bioRxiv](https://doi.org/10.64898/2026.10.28.762524)),
+using the same three implementations throughout:
 
 - **ssGSEA2.0-orig** -- `ssGSEA2.0` as published (Krug et al. 2019);
 - **ssGSEA2.0-fixed** -- `ssGSEA2.0` with its correlation-vector reordering
