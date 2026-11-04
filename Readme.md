@@ -2,7 +2,10 @@
 
 > **About this branch (`ssGSEA2.0-fixed`):** this is `ssGSEA2.0` with its
 > correlation-vector reordering fixed, referred to as **ssGSEA2.0-fixed** in
-> the ssGSEA3.0 manuscript (Clark and Mani). The published `ssGSEA2.0`
+> the ssGSEA3.0 manuscript
+> ([Clark and Mani 2026, bioRxiv](https://doi.org/10.64898/2026.10.28.762524))
+> and archived at [doi:10.5281/zenodo.23734330](https://doi.org/10.5281/zenodo.23734330).
+> The published `ssGSEA2.0`
 > reorders each feature's weight together with its permuted rank, which
 > inflates false positives when `weight > 0`
 > ([ssGSEA2.0 issue #45](https://github.com/broadinstitute/ssGSEA2.0/issues/45)).
